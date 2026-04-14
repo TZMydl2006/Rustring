@@ -12,7 +12,7 @@
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="index.html">MiniZensical Demo</a>
-      <ul class="nav-list"><li class="nav-item active"><a href="index.html">Home</a></li><li class="nav-item"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="guide/index.html">Overview</a></li><li class="nav-item"><a href="guide/setup/index.html">Setup</a></li></ul></li></ul>
+      <ul class="nav-list"><li class="nav-item active"><a href="index.html">Home</a></li><li class="nav-item"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="guide/index.html">Overview</a></li><li class="nav-item"><a href="guide/setup/index.html">Setup</a></li><li class="nav-item"><a href="guide/resources/index.html">Resources</a></li></ul></li></ul>
     </aside>
     <main class="content">
       <article class="page">
@@ -33,7 +33,24 @@
 <li>emit a static site into <code>site/</code></li>
 </ul>
 <h2 id="what-is-included">What is included</h2>
-<p>This first-stage MVP focuses on build-time generation instead of live preview.</p>
+<p>The current version already supports two core workflows:</p>
+<ul>
+<li><code>cargo run -- build</code> to generate the static site</li>
+<li><code>cargo run -- serve</code> to build once and start a local preview server</li>
+</ul>
+<h2 id="add-images-and-assets">Add images and assets</h2>
+<p>Any non-Markdown file placed under <code>docs/</code> is copied to the same relative path inside <code>site/</code>.</p>
+<p>For example, this image lives at:</p>
+<pre><code class="language-text">docs/assets/交大校徽-蓝色.png
+</code></pre>
+<p>On the homepage, the relative Markdown path is:</p>
+<pre><code class="language-md">![西安交大校徽](assets/交大校徽-蓝色.png)
+</code></pre>
+<p>The result looks like this:</p>
+<p><img src="assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png" alt="西安交大校徽" /></p>
+<p>You can also create a normal download/view link:</p>
+<p><a href="assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png">查看原图</a></p>
+<p>More examples are collected on the <code>Guide / Resources</code> page.</p>
 
         </div>
         <nav class="pager">
@@ -62,6 +79,10 @@
           
           <li class="toc-level-2">
             <a href="#what-is-included">What is included</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#add-images-and-assets">Add images and assets</a>
           </li>
           
         </ul>

@@ -68,10 +68,10 @@ minizensical/
 
 它负责：
 
-- 解析命令，例如 `minizensical build`
+- 解析命令，例如 `minizensical build` 和 `minizensical serve`
 - 接收 `--config zensical.toml`
 - 调用 `Config::load(...)`
-- 再调用 `build_site(...)`
+- 根据子命令进入构建流程或本地预览流程
 
 你可以把它理解成“程序启动后，第一个被执行的地方”。
 
@@ -88,6 +88,7 @@ minizensical/
 - `page`
 - `render`
 - `scanner`
+- `server`
 - `error`
 
 如果以后你们想把这个项目当成 Rust 库复用，这里就是统一出口。
@@ -211,6 +212,19 @@ Markdown 渲染模块。
 
 如果你想快速理解整个项目从输入到输出的流程，优先看这个文件。
 
+### `src/server.rs`
+
+本地预览服务器模块。
+
+它负责：
+
+- 在启动服务前先执行一次 `build`
+- 监听本地地址，例如 `127.0.0.1:3000`
+- 把 `site/` 中生成好的 HTML、CSS、图片等文件通过 HTTP 提供出去
+- 处理目录 URL、普通 `.html` 路径和静态资源请求
+
+当前它是“先构建一次，再提供预览”的模式，还没有自动监听文件变化。
+
 ## 4. `tests/` 里是什么
 
 ### `tests/build.rs`
@@ -228,6 +242,8 @@ Markdown 渲染模块。
 
 如果你们改了核心逻辑，最好先跑一遍测试，确保没有把现有能力改坏。
 
+另外，`src/server.rs` 里也有针对预览服务器路径解析的单元测试。
+
 ## 5. `docs/` 和 `site/` 的关系
 
 ### `docs/`
@@ -239,6 +255,7 @@ Markdown 渲染模块。
 - `docs/index.md`
 - `docs/guide/index.md`
 - `docs/guide/setup.md`
+- `docs/guide/resources.md`
 - `docs/assets/logo.png`
 
 ### `site/`
@@ -250,6 +267,7 @@ Markdown 渲染模块。
 - `site/index.html`
 - `site/guide/index.html`
 - `site/guide/setup/index.html`
+- `site/guide/resources/index.html`
 - `site/assets/logo.png`
 
 简而言之：
@@ -272,6 +290,7 @@ Markdown 渲染模块。
 - 上一页 / 下一页链接
 - 复制静态资源
 - 输出可直接打开的 HTML 页面
+- 本地预览服务器
 
 ## 7. 这个项目现在还不支持什么
 
@@ -281,7 +300,6 @@ Markdown 渲染模块。
 - Python 兼容层
 - front matter
 - 搜索
-- 本地预览服务器
 - watch / 热更新
 - 插件系统
 - 多主题 / 主题覆盖
@@ -314,6 +332,7 @@ nav = [
   { title = "Guide", children = [
     { title = "Overview", path = "guide/index.md" },
     { title = "Setup", path = "guide/setup.md" },
+    { title = "Resources", path = "guide/resources.md" },
   ] }
 ]
 ```
@@ -327,7 +346,8 @@ docs/
 ├── index.md
 └── guide/
     ├── index.md
-    └── setup.md
+    ├── setup.md
+    └── resources.md
 ```
 
 ### 步骤 4：执行构建
@@ -342,7 +362,31 @@ cargo run -- build
 cargo run -- build --config zensical.toml
 ```
 
-### 步骤 5：查看生成结果
+### 步骤 5：本地预览
+
+```bash
+cargo run -- serve
+```
+
+或者自定义地址：
+
+```bash
+cargo run -- serve --addr 127.0.0.1:4000
+```
+
+默认预览地址是：
+
+```text
+http://127.0.0.1:3000
+```
+
+注意：
+
+- `serve` 会先自动执行一次构建
+- 目前不会自动监听文件变化
+- 改完文档后，需要重新运行命令
+
+### 步骤 6：查看生成结果
 
 构建完成后，打开：
 
@@ -432,7 +476,8 @@ site_url = "https://example.com"
 
 ```toml
 { title = "Guide", children = [
-  { title = "Overview", path = "guide/index.md" }
+  { title = "Overview", path = "guide/index.md" },
+  { title = "Resources", path = "guide/resources.md" }
 ] }
 ```
 
@@ -472,9 +517,52 @@ docs/assets/logo.png
 site/assets/logo.png
 ```
 
+Markdown 里这样引用图片：
+
+```md
+![Logo](assets/logo.png)
+```
+
+如果当前页面在 `docs/guide/` 下面，就写：
+
+```md
+![Logo](../assets/logo.png)
+```
+
+如果你只想做下载链接：
+
+```md
+[下载 Logo](assets/logo.png)
+```
+
+你们当前仓库里已经有一个实际示例文件：
+
+```text
+docs/assets/交大校徽-蓝色.png
+```
+
+可以直接参考：
+
+- 首页 `docs/index.md`
+- 资源页 `docs/guide/resources.md`
+
 ### 不想手写导航
 
 删除 `zensical.toml` 里的 `nav`，系统会自动按目录结构生成。
+
+### 想本地预览站点
+
+运行：
+
+```bash
+cargo run -- serve
+```
+
+然后在浏览器打开：
+
+```text
+http://127.0.0.1:3000
+```
 
 ### 想让链接变成 `.html`
 
@@ -512,8 +600,11 @@ use_directory_urls = false
 6. 再看 `src/nav.rs`
    了解导航和前后页逻辑
 
-7. 最后看 `src/render.rs`
+7. 再看 `src/render.rs`
    了解页面最终是怎么被拼装成 HTML 的
+
+8. 如果你关心预览功能，再看 `src/server.rs`
+   了解本地静态服务器如何工作
 
 ## 12. 如果你们之后要扩展功能，应该改哪里
 
@@ -539,15 +630,12 @@ use_directory_urls = false
 - `src/page.rs`
 - `src/config.rs`
 
-### 想加本地预览服务器
+### 想增强本地预览服务器
 
 优先看：
 
 - `src/main.rs`
 - `src/build.rs`
-
-可能会新增：
-
 - `src/server.rs`
 
 ### 想改页面样式
@@ -589,6 +677,8 @@ use_directory_urls = false
 - 你使用的是显式导航，但没有在 `zensical.toml` 的 `nav` 中加入新页面
 - 你还没有重新执行 `cargo run -- build`
 
+如果你使用的是 `serve`，当前版本也需要重新运行 `cargo run -- serve`，因为还没有 watch / 热更新。
+
 ## 14. 当前推荐的工作方式
 
 对于你们四个人协作，我建议这样分工时阅读代码：
@@ -596,7 +686,8 @@ use_directory_urls = false
 - 负责 CLI / 配置的人，重点看 `src/main.rs` 和 `src/config.rs`
 - 负责 Markdown / 页面的人，重点看 `src/markdown.rs` 和 `src/page.rs`
 - 负责导航 / UI 的人，重点看 `src/nav.rs` 和 `src/render.rs`
-- 负责整体集成 / 测试的人，重点看 `src/build.rs` 和 `tests/build.rs`
+- 负责服务端预览的人，重点看 `src/server.rs`
+- 负责整体集成 / 测试的人，重点看 `src/build.rs`、`src/server.rs` 和 `tests/build.rs`
 
 ## 15. 文档维护规则
 

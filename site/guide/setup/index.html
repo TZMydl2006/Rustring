@@ -12,7 +12,7 @@
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="..&#x2f;..&#x2f;index.html">MiniZensical Demo</a>
-      <ul class="nav-list"><li class="nav-item"><a href="../../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Overview</a></li><li class="nav-item active"><a href="index.html">Setup</a></li></ul></li></ul>
+      <ul class="nav-list"><li class="nav-item"><a href="../../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Overview</a></li><li class="nav-item active"><a href="index.html">Setup</a></li><li class="nav-item"><a href="../resources/index.html">Resources</a></li></ul></li></ul>
     </aside>
     <main class="content">
       <article class="page">
@@ -27,16 +27,34 @@
 <ol>
 <li>Prepare <code>zensical.toml</code></li>
 <li>Place Markdown files inside <code>docs/</code></li>
-<li>Run the build command</li>
+<li>Run the build or serve command</li>
 </ol>
 <h2 id="result">Result</h2>
 <p>Open <code>site/index.html</code> in a browser to view the generated site.</p>
+<h2 id="commands">Commands</h2>
+<p>Generate the static site:</p>
+<pre><code class="language-bash">cargo run -- build
+</code></pre>
+<p>Generate the site and start the local preview server:</p>
+<pre><code class="language-bash">cargo run -- serve
+</code></pre>
+<h2 id="adding-images-and-resources">Adding images and resources</h2>
+<p>Place images, PDFs, or other static files anywhere under <code>docs/</code>.</p>
+<p>For example:</p>
+<pre><code class="language-text">docs/assets/交大校徽-蓝色.png
+</code></pre>
+<p>Then reference it from Markdown using a relative path:</p>
+<pre><code class="language-md">![校徽](../assets/交大校徽-蓝色.png)
+</code></pre>
+<p>If you want a fuller example, open the <code>Resources</code> page in the guide.</p>
 
         </div>
         <nav class="pager">
           
           <a class="pager-link" href="..&#x2f;index.html">Previous: Overview</a>
           
+          
+          <a class="pager-link" href="..&#x2f;resources&#x2f;index.html">Next: Resources</a>
           
         </nav>
       </article>
@@ -57,6 +75,14 @@
           
           <li class="toc-level-2">
             <a href="#result">Result</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#commands">Commands</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#adding-images-and-resources">Adding images and resources</a>
           </li>
           
         </ul>
