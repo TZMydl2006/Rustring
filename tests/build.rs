@@ -138,6 +138,32 @@ use_directory_urls = false
     assert!(temp_dir.path().join("site/guide/setup.html").exists());
 }
 
+#[test]
+fn keeps_previous_site_when_rebuild_fails() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Stable Docs"
+"#,
+    );
+    write_file(temp_dir.path().join("docs/index.md"), "# Stable\n");
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let first_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(first_html.contains("Stable"));
+
+    fs::remove_dir_all(temp_dir.path().join("docs")).unwrap();
+    let error = build_site(&config).unwrap_err();
+    assert!(error.to_string().contains("docs directory does not exist"));
+
+    let still_served_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(still_served_html.contains("Stable"));
+}
+
 fn write_file(path: impl AsRef<Path>, contents: &str) {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {

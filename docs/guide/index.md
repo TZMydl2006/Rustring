@@ -24,7 +24,7 @@ Then open:
 http://127.0.0.1:3000
 ```
 
-The preview server currently does a full build once and serves the generated `site/` directory. It does not rebuild automatically yet.
+The preview server now rebuilds automatically when files in `docs/` or `zensical.toml` change. It still does not refresh the browser automatically, so you may need to reload the page yourself.
 
 ## Output
 

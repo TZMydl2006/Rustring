@@ -2,27 +2,45 @@ use crate::build::build_site;
 use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
 use percent_encoding::percent_decode_str;
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::{Duration, UNIX_EPOCH};
+use walkdir::WalkDir;
 
 pub const DEFAULT_PREVIEW_ADDR: &str = "127.0.0.1:3000";
 
 pub fn serve_site(config: &Config, addr: &str) -> Result<()> {
     build_site(config)?;
 
-    let site_dir = config.site_dir();
+    let site_dir = Arc::new(RwLock::new(config.site_dir()));
+    spawn_watch_thread(config.clone(), site_dir.clone());
+
     let listener =
         TcpListener::bind(addr).map_err(|error| MiniZensicalError::io("bind", addr, error))?;
 
-    println!("Serving {} at http://{addr}", site_dir.display());
+    println!(
+        "Serving {} at http://{addr}",
+        site_dir
+            .read()
+            .expect("site dir lock should not be poisoned")
+            .display()
+    );
     println!("Press Ctrl+C to stop.");
+    println!("Watching docs and configuration for changes...");
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                if let Err(error) = handle_connection(stream, &site_dir) {
+                let current_site_dir = site_dir
+                    .read()
+                    .expect("site dir lock should not be poisoned")
+                    .clone();
+                if let Err(error) = handle_connection(stream, &current_site_dir) {
                     eprintln!("Request error: {error}");
                 }
             }
@@ -33,6 +51,59 @@ pub fn serve_site(config: &Config, addr: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn spawn_watch_thread(initial_config: Config, served_site_dir: Arc<RwLock<PathBuf>>) {
+    thread::spawn(move || {
+        let config_path = initial_config.path.clone();
+        let mut current_config = initial_config;
+        let mut snapshot = snapshot_sources(&current_config);
+
+        loop {
+            thread::sleep(Duration::from_millis(800));
+            let latest_snapshot = snapshot_sources(&current_config);
+            if latest_snapshot == snapshot {
+                continue;
+            }
+            snapshot = latest_snapshot;
+
+            let next_config = match Config::load(&config_path) {
+                Ok(config) => config,
+                Err(error) => {
+                    eprintln!("Rebuild skipped: {error}");
+                    continue;
+                }
+            };
+
+            println!("Change detected. Rebuilding...");
+            let previous_site_dir = served_site_dir
+                .read()
+                .expect("site dir lock should not be poisoned")
+                .clone();
+
+            match build_site(&next_config) {
+                Ok(()) => {
+                    let next_site_dir = next_config.site_dir();
+                    if previous_site_dir != next_site_dir && previous_site_dir.exists() {
+                        let _ = fs::remove_dir_all(&previous_site_dir);
+                    }
+
+                    current_config = next_config;
+                    snapshot = snapshot_sources(&current_config);
+                    *served_site_dir
+                        .write()
+                        .expect("site dir lock should not be poisoned") = current_config.site_dir();
+                    println!("Rebuild finished.");
+                }
+                Err(error) => {
+                    current_config = next_config;
+                    snapshot = snapshot_sources(&current_config);
+                    eprintln!("Rebuild failed: {error}");
+                    eprintln!("Serving the last successful build.");
+                }
+            }
+        }
+    });
 }
 
 fn handle_connection(mut stream: TcpStream, site_dir: &Path) -> io::Result<()> {
@@ -196,9 +267,42 @@ fn content_type_for(path: &Path) -> &'static str {
     }
 }
 
+fn snapshot_sources(config: &Config) -> BTreeMap<PathBuf, u128> {
+    let mut snapshot = BTreeMap::new();
+
+    add_file_timestamp(&mut snapshot, &config.path);
+
+    let docs_dir = config.docs_dir();
+    if docs_dir.exists() {
+        for entry in WalkDir::new(&docs_dir).sort_by_file_name() {
+            let Ok(entry) = entry else {
+                continue;
+            };
+            if entry.file_type().is_file() {
+                add_file_timestamp(&mut snapshot, entry.path());
+            }
+        }
+    }
+
+    snapshot
+}
+
+fn add_file_timestamp(snapshot: &mut BTreeMap<PathBuf, u128>, path: &Path) {
+    if let Ok(metadata) = fs::metadata(path) {
+        if let Ok(modified) = metadata.modified() {
+            let timestamp = modified
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_millis())
+                .unwrap_or(0);
+            snapshot.insert(path.to_path_buf(), timestamp);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resolve_request_path;
+    use super::{resolve_request_path, snapshot_sources};
+    use crate::config::Config;
     use std::fs;
     use tempfile::TempDir;
 
@@ -243,5 +347,25 @@ mod tests {
     fn rejects_parent_directory_requests() {
         let temp_dir = TempDir::new().unwrap();
         assert!(resolve_request_path(temp_dir.path(), "/../../etc/passwd").is_none());
+    }
+
+    #[test]
+    fn snapshots_config_and_docs_files() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join("zensical.toml"),
+            "[project]\nsite_name = \"Docs\"\n",
+        )
+        .unwrap();
+        fs::create_dir_all(temp_dir.path().join("docs/guide")).unwrap();
+        fs::write(temp_dir.path().join("docs/index.md"), "# Home\n").unwrap();
+        fs::write(temp_dir.path().join("docs/guide/setup.md"), "# Setup\n").unwrap();
+
+        let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+        let snapshot = snapshot_sources(&config);
+
+        assert!(snapshot.contains_key(&temp_dir.path().join("zensical.toml")));
+        assert!(snapshot.contains_key(&temp_dir.path().join("docs/index.md")));
+        assert!(snapshot.contains_key(&temp_dir.path().join("docs/guide/setup.md")));
     }
 }

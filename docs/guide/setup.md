@@ -26,6 +26,8 @@ Generate the site and start the local preview server:
 cargo run -- serve
 ```
 
+When `serve` is running, editing Markdown files, static assets, or `zensical.toml` will trigger an automatic rebuild.
+
 ## Adding images and resources
 
 Place images, PDFs, or other static files anywhere under `docs/`.

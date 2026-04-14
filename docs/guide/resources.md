@@ -45,4 +45,5 @@ Actual example:
 
 - Put reusable images in `docs/assets/`
 - Use paths relative to the current Markdown file
-- After adding a new image or resource, run `cargo run -- build` or `cargo run -- serve` again
+- After adding a new image or resource, run `cargo run -- build`
+- If `cargo run -- serve` is already running, saving the file is enough to trigger a rebuild
