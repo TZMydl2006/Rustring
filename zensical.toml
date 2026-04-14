@@ -9,5 +9,6 @@ nav = [
   { title = "Guide", children = [
     { title = "Overview", path = "guide/index.md" },
     { title = "Setup", path = "guide/setup.md" },
+    { title = "Resources", path = "guide/resources.md" },
   ] }
 ]

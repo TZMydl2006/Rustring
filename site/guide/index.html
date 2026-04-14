@@ -12,7 +12,7 @@
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="..&#x2f;index.html">MiniZensical Demo</a>
-      <ul class="nav-list"><li class="nav-item"><a href="../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item active"><a href="index.html">Overview</a></li><li class="nav-item"><a href="setup/index.html">Setup</a></li></ul></li></ul>
+      <ul class="nav-list"><li class="nav-item"><a href="../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item active"><a href="index.html">Overview</a></li><li class="nav-item"><a href="setup/index.html">Setup</a></li><li class="nav-item"><a href="resources/index.html">Resources</a></li></ul></li></ul>
     </aside>
     <main class="content">
       <article class="page">
@@ -27,8 +27,21 @@
 <p>Run:</p>
 <pre><code class="language-bash">cargo run -- build
 </code></pre>
+<h2 id="local-preview">Local preview</h2>
+<p>Run:</p>
+<pre><code class="language-bash">cargo run -- serve
+</code></pre>
+<p>Then open:</p>
+<pre><code class="language-text">http://127.0.0.1:3000
+</code></pre>
+<p>The preview server currently does a full build once and serves the generated <code>site/</code> directory. It does not rebuild automatically yet.</p>
 <h2 id="output">Output</h2>
 <p>The generated site is written into the <code>site/</code> directory.</p>
+<h2 id="next-pages">Next pages</h2>
+<ul>
+<li><code>Setup</code> explains the basic project workflow</li>
+<li><code>Resources</code> shows how to reference images and other static files</li>
+</ul>
 
         </div>
         <nav class="pager">
@@ -56,7 +69,15 @@
           </li>
           
           <li class="toc-level-2">
+            <a href="#local-preview">Local preview</a>
+          </li>
+          
+          <li class="toc-level-2">
             <a href="#output">Output</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#next-pages">Next pages</a>
           </li>
           
         </ul>

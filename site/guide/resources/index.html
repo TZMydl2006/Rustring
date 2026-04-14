@@ -1,0 +1,96 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resources - MiniZensical Demo</title>
+  
+  <link rel="stylesheet" href="..&#x2f;..&#x2f;assets&#x2f;minizensical.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="..&#x2f;..&#x2f;index.html">MiniZensical Demo</a>
+      <ul class="nav-list"><li class="nav-item"><a href="../../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Overview</a></li><li class="nav-item"><a href="../setup/index.html">Setup</a></li><li class="nav-item active"><a href="index.html">Resources</a></li></ul></li></ul>
+    </aside>
+    <main class="content">
+      <article class="page">
+        <header class="page-header">
+          <p class="eyebrow">MiniZensical</p>
+          <h1>Resources</h1>
+        </header>
+        <div class="page-body">
+          <h1 id="resources">Resources</h1>
+<p>This page shows how to use images and other static files in MiniZensical.</p>
+<h2 id="rule-of-thumb">Rule of thumb</h2>
+<p>Any non-Markdown file inside <code>docs/</code> is copied to the same relative location inside <code>site/</code>.</p>
+<p>Examples:</p>
+<ul>
+<li><code>docs/assets/交大校徽-蓝色.png -&gt; site/assets/交大校徽-蓝色.png</code></li>
+<li><code>docs/files/report.pdf -&gt; site/files/report.pdf</code></li>
+</ul>
+<h2 id="image-syntax">Image syntax</h2>
+<p>If a page is in the root <code>docs/</code> directory, you can write:</p>
+<pre><code class="language-md">![校徽](assets/交大校徽-蓝色.png)
+</code></pre>
+<p>If a page is inside <code>docs/guide/</code>, you need to go up one directory:</p>
+<pre><code class="language-md">![校徽](../assets/交大校徽-蓝色.png)
+</code></pre>
+<p>Actual example on this page:</p>
+<p><img src="../assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png" alt="校徽" /></p>
+<h2 id="link-syntax">Link syntax</h2>
+<p>If you only want a clickable link instead of an embedded image:</p>
+<pre><code class="language-md">[查看校徽原图](../assets/交大校徽-蓝色.png)
+</code></pre>
+<p>Actual example:</p>
+<p><a href="../assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png">查看校徽原图</a></p>
+<h2 id="practical-advice">Practical advice</h2>
+<ul>
+<li>Put reusable images in <code>docs/assets/</code></li>
+<li>Use paths relative to the current Markdown file</li>
+<li>After adding a new image or resource, run <code>cargo run -- build</code> or <code>cargo run -- serve</code> again</li>
+</ul>
+
+        </div>
+        <nav class="pager">
+          
+          <a class="pager-link" href="..&#x2f;setup&#x2f;index.html">Previous: Setup</a>
+          
+          
+        </nav>
+      </article>
+    </main>
+    <aside class="toc">
+      <div class="toc-card">
+        <h2>On this page</h2>
+        
+        <ul class="toc-list">
+          
+          <li class="toc-level-1">
+            <a href="#resources">Resources</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#rule-of-thumb">Rule of thumb</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#image-syntax">Image syntax</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#link-syntax">Link syntax</a>
+          </li>
+          
+          <li class="toc-level-2">
+            <a href="#practical-advice">Practical advice</a>
+          </li>
+          
+        </ul>
+        
+      </div>
+    </aside>
+  </div>
+</body>
+</html>

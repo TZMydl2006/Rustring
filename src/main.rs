@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use minizensical::{Config, build_site};
+use minizensical::{Config, DEFAULT_PREVIEW_ADDR, build_site, serve_site};
 use std::path::PathBuf;
 use std::process;
 
@@ -17,6 +17,12 @@ enum Commands {
         #[arg(long, default_value = "zensical.toml")]
         config: PathBuf,
     },
+    Serve {
+        #[arg(long, default_value = "zensical.toml")]
+        config: PathBuf,
+        #[arg(long, default_value = DEFAULT_PREVIEW_ADDR)]
+        addr: String,
+    },
 }
 
 fn main() {
@@ -32,6 +38,10 @@ fn run() -> minizensical::Result<()> {
         Commands::Build { config } => {
             let config = Config::load(config)?;
             build_site(&config)
+        }
+        Commands::Serve { config, addr } => {
+            let config = Config::load(config)?;
+            serve_site(&config, &addr)
         }
     }
 }
