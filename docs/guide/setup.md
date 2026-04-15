@@ -26,7 +26,7 @@ Generate the site and start the local preview server:
 cargo run -- serve
 ```
 
-When `serve` is running, editing Markdown files, static assets, or `zensical.toml` will trigger an automatic rebuild.
+When `serve` is running, editing Markdown files, static assets, or `zensical.toml` will trigger an automatic rebuild, and the browser page will refresh automatically after a successful rebuild.
 
 ## Adding images and resources
 

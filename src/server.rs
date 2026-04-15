@@ -7,18 +7,21 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, UNIX_EPOCH};
 use walkdir::WalkDir;
 
 pub const DEFAULT_PREVIEW_ADDR: &str = "127.0.0.1:3000";
+const LIVE_RELOAD_VERSION_PATH: &str = "/__minizensical/version";
 
 pub fn serve_site(config: &Config, addr: &str) -> Result<()> {
     build_site(config)?;
 
     let site_dir = Arc::new(RwLock::new(config.site_dir()));
-    spawn_watch_thread(config.clone(), site_dir.clone());
+    let reload_version = Arc::new(AtomicU64::new(1));
+    spawn_watch_thread(config.clone(), site_dir.clone(), reload_version.clone());
 
     let listener =
         TcpListener::bind(addr).map_err(|error| MiniZensicalError::io("bind", addr, error))?;
@@ -40,7 +43,7 @@ pub fn serve_site(config: &Config, addr: &str) -> Result<()> {
                     .read()
                     .expect("site dir lock should not be poisoned")
                     .clone();
-                if let Err(error) = handle_connection(stream, &current_site_dir) {
+                if let Err(error) = handle_connection(stream, &current_site_dir, &reload_version) {
                     eprintln!("Request error: {error}");
                 }
             }
@@ -53,7 +56,11 @@ pub fn serve_site(config: &Config, addr: &str) -> Result<()> {
     Ok(())
 }
 
-fn spawn_watch_thread(initial_config: Config, served_site_dir: Arc<RwLock<PathBuf>>) {
+fn spawn_watch_thread(
+    initial_config: Config,
+    served_site_dir: Arc<RwLock<PathBuf>>,
+    reload_version: Arc<AtomicU64>,
+) {
     thread::spawn(move || {
         let config_path = initial_config.path.clone();
         let mut current_config = initial_config;
@@ -93,7 +100,8 @@ fn spawn_watch_thread(initial_config: Config, served_site_dir: Arc<RwLock<PathBu
                     *served_site_dir
                         .write()
                         .expect("site dir lock should not be poisoned") = current_config.site_dir();
-                    println!("Rebuild finished.");
+                    let next_version = reload_version.fetch_add(1, Ordering::SeqCst) + 1;
+                    println!("Rebuild finished. Live reload version {next_version}.");
                 }
                 Err(error) => {
                     current_config = next_config;
@@ -106,7 +114,11 @@ fn spawn_watch_thread(initial_config: Config, served_site_dir: Arc<RwLock<PathBu
     });
 }
 
-fn handle_connection(mut stream: TcpStream, site_dir: &Path) -> io::Result<()> {
+fn handle_connection(
+    mut stream: TcpStream,
+    site_dir: &Path,
+    reload_version: &AtomicU64,
+) -> io::Result<()> {
     let request_line = read_request_line(&stream)?;
     if request_line.is_empty() {
         return Ok(());
@@ -125,14 +137,30 @@ fn handle_connection(mut stream: TcpStream, site_dir: &Path) -> io::Result<()> {
         );
     }
 
+    if request_path(target) == LIVE_RELOAD_VERSION_PATH {
+        let version = reload_version.load(Ordering::SeqCst).to_string();
+        let body = if method == "HEAD" {
+            Vec::new()
+        } else {
+            version.into_bytes()
+        };
+        return write_response(&mut stream, 200, "OK", "text/plain; charset=utf-8", &body);
+    }
+
     let Some(file_path) = resolve_request_path(site_dir, target) else {
         return write_error_response(&mut stream, 404, "Not Found", "File not found.");
     };
 
     match fs::read(&file_path) {
         Ok(body) => {
+            let content_type = content_type_for(&file_path);
             let body = if method == "HEAD" { Vec::new() } else { body };
-            write_response(&mut stream, 200, "OK", content_type_for(&file_path), &body)
+            let body = inject_live_reload_script(
+                body,
+                content_type,
+                reload_version.load(Ordering::SeqCst),
+            );
+            write_response(&mut stream, 200, "OK", content_type, &body)
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             write_error_response(&mut stream, 404, "Not Found", "File not found.")
@@ -164,6 +192,10 @@ fn parse_request_line(request_line: &str) -> Option<(&str, &str)> {
     let target = parts.next()?;
     let _version = parts.next()?;
     Some((method, target))
+}
+
+fn request_path(target: &str) -> &str {
+    target.split('?').next().unwrap_or(target)
 }
 
 fn write_response(
@@ -202,6 +234,63 @@ fn write_error_response(
         status_text,
         "text/html; charset=utf-8",
         body.as_bytes(),
+    )
+}
+
+fn inject_live_reload_script(body: Vec<u8>, content_type: &str, reload_version: u64) -> Vec<u8> {
+    if !content_type.starts_with("text/html") || body.is_empty() {
+        return body;
+    }
+
+    let html = match String::from_utf8(body) {
+        Ok(html) => html,
+        Err(error) => return error.into_bytes(),
+    };
+    let snippet = live_reload_snippet(reload_version);
+    let updated = if let Some(index) = html.rfind("</body>") {
+        let mut output = String::with_capacity(html.len() + snippet.len());
+        output.push_str(&html[..index]);
+        output.push_str(&snippet);
+        output.push_str(&html[index..]);
+        output
+    } else {
+        let mut output = html;
+        output.push_str(&snippet);
+        output
+    };
+
+    updated.into_bytes()
+}
+
+fn live_reload_snippet(reload_version: u64) -> String {
+    format!(
+        r#"<script>
+(() => {{
+  const versionPath = "{LIVE_RELOAD_VERSION_PATH}";
+  let currentVersion = "{reload_version}";
+
+  async function poll() {{
+    try {{
+      const response = await fetch(versionPath, {{ cache: "no-store" }});
+      if (!response.ok) {{
+        return;
+      }}
+
+      const nextVersion = (await response.text()).trim();
+      if (nextVersion && nextVersion !== currentVersion) {{
+        window.location.reload();
+        return;
+      }}
+    }} catch (_error) {{
+      // Keep polling quietly during local development.
+    }}
+
+    window.setTimeout(poll, 1000);
+  }}
+
+  window.setTimeout(poll, 1000);
+}})();
+</script>"#
     )
 }
 
@@ -301,7 +390,10 @@ fn add_file_timestamp(snapshot: &mut BTreeMap<PathBuf, u128>, path: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_request_path, snapshot_sources};
+    use super::{
+        LIVE_RELOAD_VERSION_PATH, inject_live_reload_script, request_path, resolve_request_path,
+        snapshot_sources,
+    };
     use crate::config::Config;
     use std::fs;
     use tempfile::TempDir;
@@ -367,5 +459,32 @@ mod tests {
         assert!(snapshot.contains_key(&temp_dir.path().join("zensical.toml")));
         assert!(snapshot.contains_key(&temp_dir.path().join("docs/index.md")));
         assert!(snapshot.contains_key(&temp_dir.path().join("docs/guide/setup.md")));
+    }
+
+    #[test]
+    fn injects_live_reload_script_into_html() {
+        let body = b"<!doctype html><html><body><h1>Hello</h1></body></html>".to_vec();
+        let injected = inject_live_reload_script(body, "text/html; charset=utf-8", 7);
+        let html = String::from_utf8(injected).unwrap();
+
+        assert!(html.contains(LIVE_RELOAD_VERSION_PATH));
+        assert!(html.contains("currentVersion = \"7\""));
+        assert!(html.contains("</script></body>"));
+    }
+
+    #[test]
+    fn leaves_non_html_responses_unchanged() {
+        let body = b"plain text".to_vec();
+        let injected = inject_live_reload_script(body.clone(), "text/plain; charset=utf-8", 7);
+        assert_eq!(injected, body);
+    }
+
+    #[test]
+    fn extracts_request_path_without_query() {
+        assert_eq!(request_path("/guide/?a=1"), "/guide/");
+        assert_eq!(
+            request_path("/__minizensical/version?ts=123"),
+            LIVE_RELOAD_VERSION_PATH
+        );
     }
 }
