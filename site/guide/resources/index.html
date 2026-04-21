@@ -4,22 +4,60 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Resources - MiniZensical Demo</title>
+  <title>Resources - MiniZensical Course Showcase</title>
+  
+  <meta name="description" content="Images, PDFs, and other files placed under docs&#x2f; are copied into the generated site at the same relative path.">
+  
   
   <link rel="stylesheet" href="..&#x2f;..&#x2f;assets&#x2f;minizensical.css">
 </head>
-<body>
+<body data-search-index="..&#x2f;..&#x2f;search.json" data-site-home="..&#x2f;..&#x2f;index.html">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="..&#x2f;..&#x2f;index.html">MiniZensical Demo</a>
-      <ul class="nav-list"><li class="nav-item"><a href="../../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Overview</a></li><li class="nav-item"><a href="../setup/index.html">Setup</a></li><li class="nav-item active"><a href="index.html">Resources</a></li></ul></li></ul>
+      <a class="brand" href="..&#x2f;..&#x2f;index.html">
+        <span class="brand-mark">MZ</span>
+        <span class="brand-copy">
+          <strong>MiniZensical Course Showcase</strong>
+          <span>Rust static docs with course-ready polish</span>
+        </span>
+      </a>
+
+      <section class="search-panel">
+        <label class="search-label" for="doc-search">Search docs</label>
+        <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, tags, and content">
+        <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
+        <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
+        <div id="search-results" class="search-results" hidden></div>
+      </section>
+
+      <div class="nav-shell">
+        <ul class="nav-list"><li class="nav-item"><a href="../../index.html">MiniZensical</a></li><li class="nav-item"><a href="../../project-showcase/index.html">Project Showcase</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Guide Overview</a></li><li class="nav-item"><a href="../setup/index.html">Setup &amp; Preview</a></li><li class="nav-item"><a href="../front-matter/index.html">Front Matter</a></li><li class="nav-item active"><a href="index.html">Resources</a></li></ul></li></ul>
+      </div>
     </aside>
+
     <main class="content">
-      <article class="page">
+      
+
+      <article class="page" id="page-start">
         <header class="page-header">
           <p class="eyebrow">MiniZensical</p>
+          
+          <div class="tag-list">
+            
+            <span class="tag-chip">guide</span>
+            
+            <span class="tag-chip">assets</span>
+            
+          </div>
+          
           <h1>Resources</h1>
+          
+          <p class="page-summary">Images, PDFs, and other files placed under docs&#x2f; are copied into the generated site at the same relative path.</p>
+          
         </header>
+
         <div class="page-body">
           <h1 id="resources">Resources</h1>
 <p>This page shows how to use images and other static files in MiniZensical.</p>
@@ -49,22 +87,28 @@
 <ul>
 <li>Put reusable images in <code>docs/assets/</code></li>
 <li>Use paths relative to the current Markdown file</li>
-<li>After adding a new image or resource, run <code>cargo run -- build</code></li>
-<li>If <code>cargo run -- serve</code> is already running, saving the file is enough to trigger a rebuild</li>
+<li>Run <code>cargo run -- build</code> for a one-time export</li>
+<li>If <code>cargo run -- serve</code> is already running, saving the file is enough to trigger a rebuild and refresh</li>
 </ul>
 
         </div>
+
         <nav class="pager">
           
-          <a class="pager-link" href="..&#x2f;setup&#x2f;index.html">Previous: Setup</a>
+          <a class="pager-link" href="..&#x2f;front-matter&#x2f;index.html">
+            <span class="pager-eyebrow">Previous</span>
+            <strong>Front Matter</strong>
+          </a>
           
+
           
         </nav>
       </article>
     </main>
+
     <aside class="toc">
       <div class="toc-card">
-        <h2>On this page</h2>
+        <p class="toc-label">On this page</p>
         
         <ul class="toc-list">
           
@@ -93,5 +137,7 @@
       </div>
     </aside>
   </div>
+
+  <script src="..&#x2f;..&#x2f;assets&#x2f;minizensical-search.js"></script>
 </body>
 </html>

@@ -1,22 +1,30 @@
 # MiniZensical 用户指导
 
-## 1. 这个项目是做什么的
+## 1. 这个项目现在是什么
 
-`MiniZensical` 是一个用 Rust 写的简化版静态站点生成器，灵感来自 zensical。
+`MiniZensical` 是一个用 Rust 写的静态站点生成器，灵感来自 zensical。
 
-它做的事情很简单：
+它保留了最核心的主链路：
 
-1. 读取根目录下的 `zensical.toml`
-2. 扫描 `docs/` 目录里的 Markdown 和静态资源
-3. 把 Markdown 转成 HTML
-4. 生成左侧导航、页内目录、上一页/下一页链接
-5. 把结果输出到 `site/`
+```text
+zensical.toml + docs/ -> site/
+```
 
-如果你把它想成一句话，就是：
+但现在已经不只是第一阶段的最小版了。当前版本额外加入了：
 
-`zensical.toml + docs/ -> site/`
+- 本地预览服务器 `serve`
+- 自动重建
+- 浏览器自动刷新
+- YAML front matter
+- 页面标签和摘要
+- 前端全文搜索
+- 更适合课程展示的页面样式
 
-## 2. 第一次接触时，先记住这几个目录
+如果你要用一句话理解现在的项目，可以这样记：
+
+> 它是一个“保留 zensical 核心流程、但更适合课程答辩展示”的 Rust 文档站生成器。
+
+## 2. 第一次接触时，先认这几个目录
 
 ```text
 minizensical/
@@ -34,31 +42,31 @@ minizensical/
 它们的作用分别是：
 
 - `Cargo.toml`
-  Rust 项目的配置文件，定义项目名、版本和依赖库。
+  Rust 项目的配置文件，定义项目名、版本和依赖。
 
 - `Cargo.lock`
-  锁定依赖版本，保证不同机器上编译结果更稳定。
+  锁定依赖版本，保证不同机器上的编译结果更稳定。
 
 - `README.md`
-  就是这份说明文档。之后项目结构或使用方式变化时，这份文档也应该一起更新。
+  就是这份用户指导。只要项目结构、功能、命令或用法发生变化，这份文档也必须一起更新。
 
 - `zensical.toml`
-  项目的用户配置文件。它决定站点名称、输入目录、输出目录、URL 风格、导航结构等。
+  项目的用户配置文件。站点标题、输入目录、输出目录、URL 风格都在这里配置。
 
 - `docs/`
-  文档源文件目录。你们主要写的 Markdown 页面、图片、额外静态资源都放在这里。
+  文档源目录。Markdown 页面、图片、PDF、其他静态资源都放这里。
 
 - `site/`
-  构建产物目录。每次执行 `build` 都会重新生成。不要手动改这里面的 HTML/CSS，因为下次构建会覆盖。
+  生成结果目录。每次构建都会重建，所以不要手动改里面的 HTML/CSS。
 
 - `src/`
-  Rust 源码目录。项目逻辑都在这里。
+  Rust 源码目录。项目核心逻辑都在这里。
 
 - `tests/`
-  集成测试目录，用来验证这个项目的核心能力是不是正常。
+  集成测试目录，用来验证构建、导航、front matter、搜索索引等核心功能。
 
 - `target/`
-  Cargo 编译缓存目录。它是工具自动生成的，不是你们日常阅读代码的重点。
+  Cargo 编译缓存目录，不是日常阅读重点。
 
 ## 3. `src/` 里每个文件是干什么的
 
@@ -68,131 +76,131 @@ minizensical/
 
 它负责：
 
-- 解析命令，例如 `minizensical build` 和 `minizensical serve`
-- 接收 `--config zensical.toml`
+- 解析 `build` 和 `serve` 子命令
+- 读取 `--config`
 - 调用 `Config::load(...)`
-- 根据子命令进入构建流程或本地预览流程
-
-你可以把它理解成“程序启动后，第一个被执行的地方”。
+- 进入构建流程或本地预览流程
 
 ### `src/lib.rs`
 
 库入口。
 
-它负责把主要模块导出出来，比如：
-
-- `build`
-- `config`
-- `markdown`
-- `nav`
-- `page`
-- `render`
-- `scanner`
-- `server`
-- `error`
-
-如果以后你们想把这个项目当成 Rust 库复用，这里就是统一出口。
+它把主要模块统一导出，方便内部引用，也方便以后把项目当成 Rust 库复用。
 
 ### `src/error.rs`
 
-统一错误定义。
+统一错误类型。
 
-它的作用是让项目在失败时能给出更清楚的信息，比如：
+它负责把这些错误变成更清楚的信息：
 
-- 读文件失败
-- 扫描目录失败
-- `toml` 解析失败
-- 用户配置不合法
+- 文件读写失败
+- 配置文件解析失败
+- front matter 解析失败
+- 搜索索引序列化失败
 - 模板渲染失败
-
-这样出现问题时，不会只看到一串难懂的 panic。
 
 ### `src/config.rs`
 
-读取和校验 `zensical.toml` 的模块。
+配置读取与校验模块。
 
 它负责：
 
-- 把 `zensical.toml` 解析成 Rust 结构体
+- 解析 `zensical.toml`
 - 提供默认值
 - 校验 `docs_dir` 和 `site_dir`
-- 校验 `nav` 的写法是否正确
-- 生成 `docs_dir()` 和 `site_dir()` 这样的辅助方法
+- 校验显式 `nav` 的结构是否合法
+- 生成 `docs_dir()` 和 `site_dir()` 等辅助方法
 
-如果以后你们要给配置文件增加新字段，通常从这里开始改。
+如果以后你们要新增全局配置字段，通常从这里改。
 
 ### `src/scanner.rs`
 
-扫描 `docs/` 目录的模块。
+扫描 `docs/` 的模块。
 
 它负责：
 
-- 遍历 `docs/` 下的所有文件
-- 判断哪些是 Markdown，哪些是普通静态资源
-- 把文件路径整理成统一格式
-
-它输出的是“原始输入文件列表”，供后面的页面生成和资源复制使用。
+- 遍历 `docs/` 中所有文件
+- 区分 Markdown 和静态资源
+- 为后续构建生成统一的源文件列表
 
 ### `src/markdown.rs`
 
-Markdown 渲染模块。
+Markdown 解析模块。
 
 它负责：
 
+- 解析 YAML front matter
 - 把 Markdown 转成 HTML
 - 提取标题
-- 给标题生成锚点 id
 - 生成页内目录 TOC
+- 提取纯文本内容，供搜索索引使用
+- 给标题生成锚点 id
 
-它是“Markdown 文本 -> 页面内容数据”的核心一步。
+这是“文本内容 -> 页面数据”的关键一步。
 
 ### `src/page.rs`
 
 页面模型模块。
 
-它负责定义一个页面到底包含什么，比如：
+它负责定义一个页面最终需要有哪些信息，例如：
 
 - 源文件路径
 - 输出文件路径
 - 页面标题
 - HTML 正文
 - TOC
-- 规范化 URL
+- 标签
+- 摘要
+- 排序字段 `order`
+- 搜索摘要和纯文本内容
 
-它还负责实现输出路径规则，比如：
+这里还负责输出路径规则，例如：
 
 - `index.md -> index.html`
-- `guide/setup.md -> guide/setup/index.html`，当 `use_directory_urls = true`
-- `guide/setup.md -> guide/setup.html`，当 `use_directory_urls = false`
+- `guide/setup.md -> guide/setup/index.html`
+- `guide/setup.md -> guide/setup.html`
 
 ### `src/nav.rs`
 
 导航模块。
 
-它负责两种导航方式：
+它负责：
 
-- 自动导航：如果 `zensical.toml` 没写 `nav`，就按目录结构自动生成
-- 显式导航：如果写了 `nav`，就按配置顺序和标题生成
+- 自动导航
+- 显式导航
+- 当前页面 active 状态
+- 上一页 / 下一页链接
+- 页面相对路径计算
+- 自动导航下基于 `order` 的同级排序
 
-它还负责：
+注意：
 
-- 计算当前页面对应的 active 导航项
-- 生成上一页和下一页链接
-- 计算页面之间的相对链接
-
-如果你们未来要加入“折叠导航”“面包屑”“更复杂的 section 逻辑”，这里会是重点修改点。
+- 如果你配置了显式 `nav`，顺序以 `nav` 为准
+- 如果你不写 `nav`，自动导航会参考 front matter 里的 `order`
 
 ### `src/render.rs`
 
-渲染 HTML 的模块。
+HTML 渲染模块。
 
 它负责：
 
-- 使用内置模板 `main.html`
-- 把页面内容、导航、TOC、前后页链接注入模板
-- 提供内置样式 `minizensical.css`
+- 内置页面模板
+- 内置 CSS
+- 内置前端搜索脚本
+- 把导航、TOC、正文、标签、摘要、搜索入口注入页面
 
-如果你们之后想加入自己的页面风格、学校课程展示风格、彩蛋页面、主题切换，这里是最直接的入口。
+如果你们要改答辩展示效果、页面布局、视觉风格，这里最关键。
+
+### `src/search.rs`
+
+搜索索引模块。
+
+它负责：
+
+- 从所有页面生成 `search.json`
+- 把标题、摘要、标签、一级/二级标题、正文纯文本整理成搜索索引
+
+搜索是纯前端实现的，所以 Rust 这边只负责生成索引，不提供后端 API。
 
 ### `src/build.rs`
 
@@ -200,17 +208,17 @@ Markdown 渲染模块。
 
 它是整个项目的“总装配线”。
 
-它负责按顺序做这些事：
+它按顺序完成：
 
-1. 清空旧的 `site/`
+1. 准备 staging 构建目录
 2. 扫描 `docs/`
-3. 生成所有页面
+3. 生成所有 `Page`
 4. 构建导航
-5. 写入内置 CSS
-6. 渲染 HTML 页面
-7. 复制静态资源
-
-如果你想快速理解整个项目从输入到输出的流程，优先看这个文件。
+5. 写入内置 CSS 和搜索脚本
+6. 生成 `search.json`
+7. 渲染所有 HTML 页面
+8. 复制静态资源
+9. 安全切换到最终 `site/`
 
 ### `src/server.rs`
 
@@ -218,95 +226,87 @@ Markdown 渲染模块。
 
 它负责：
 
-- 在启动服务前先执行一次 `build`
-- 监听本地地址，例如 `127.0.0.1:3000`
-- 把 `site/` 中生成好的 HTML、CSS、图片等文件通过 HTTP 提供出去
-- 处理目录 URL、普通 `.html` 路径和静态资源请求
+- 启动前先做一次构建
+- 提供本地 HTTP 预览
+- 监听 `docs/` 和 `zensical.toml` 变化
+- 自动重建
+- 自动刷新浏览器页面
+- 支持目录 URL、普通 `.html` 和中文文件名资源
 
-当前它会先构建一次，再在后台轮询 `docs/` 和 `zensical.toml` 的变化；检测到变更并成功重建后，会让打开中的预览页面自动刷新。
-
-## 4. `tests/` 里是什么
-
-### `tests/build.rs`
-
-这是集成测试。
-
-它现在覆盖了这些核心场景：
-
-- 最小站点能否正常生成
-- 目录 URL 模式是否正确
-- 静态资源是否被复制
-- 显式导航是否覆盖标题和顺序
-- 缺失导航页面时是否报错
-- `use_directory_urls = false` 是否生成 `.html` 文件
-
-如果你们改了核心逻辑，最好先跑一遍测试，确保没有把现有能力改坏。
-
-另外，`src/server.rs` 里也有针对预览服务器路径解析的单元测试。
-
-## 5. `docs/` 和 `site/` 的关系
+## 4. `docs/` 和 `site/` 的关系
 
 ### `docs/`
 
-这是输入。
+输入目录。
 
-例如：
+当前示例里，你会看到这些内容：
 
 - `docs/index.md`
+- `docs/project-showcase.md`
 - `docs/guide/index.md`
 - `docs/guide/setup.md`
+- `docs/guide/front-matter.md`
 - `docs/guide/resources.md`
-- `docs/assets/logo.png`
+- `docs/assets/交大校徽-蓝色.png`
 
 ### `site/`
 
-这是输出。
+输出目录。
 
-构建后会变成类似：
+构建后会出现类似：
 
 - `site/index.html`
+- `site/project-showcase/index.html`
 - `site/guide/index.html`
 - `site/guide/setup/index.html`
-- `site/guide/resources/index.html`
-- `site/assets/logo.png`
+- `site/guide/front-matter/index.html`
+- `site/search.json`
+- `site/assets/minizensical.css`
+- `site/assets/minizensical-search.js`
+- `site/assets/交大校徽-蓝色.png`
 
-简而言之：
+一句话总结：
 
-- 写内容，看 `docs/`
-- 看结果，看 `site/`
+- 改内容，看 `docs/`
 - 改逻辑，看 `src/`
+- 看结果，看 `site/`
 
-## 6. 这个项目现在支持什么
+## 5. 现在已经支持什么
 
-当前 MVP 已经支持：
+当前版本支持：
 
 - 读取 `zensical.toml`
 - 扫描 `docs/`
 - Markdown 转 HTML
-- 自动提取 H1 作为标题
-- 生成页内目录
+- 自动提取 H1
+- YAML front matter
+- 页面摘要和标签
+- 页面排序字段 `order`
 - 自动导航
 - 显式导航
 - 上一页 / 下一页链接
+- 页内目录
 - 复制静态资源
-- 输出可直接打开的 HTML 页面
+- 生成 `search.json`
+- 前端即时搜索
 - 本地预览服务器
+- 自动重建
+- 浏览器自动刷新
 
-## 7. 这个项目现在还不支持什么
+## 6. 现在还没有做什么
 
-为了让第一阶段简单稳定，目前故意没有做：
+为了保持课程项目范围可控，目前还没有做：
 
 - `mkdocs.yml` 兼容
 - Python 兼容层
-- front matter
-- 搜索
-- watch / 热更新
 - 插件系统
-- 多主题 / 主题覆盖
+- 多主题切换
+- 深度搜索排序优化
+- 服务端搜索 API
+- 作者 / 日期 / 归档系统
+- 复杂 taxonomy 自动页面生成
 
-如果你们第二阶段要扩展，这些都是可选方向。
-
-## 8. 如何使用这个项目
+## 7. 如何快速跑起来
 
 ### 步骤 1：进入项目目录
 
@@ -314,129 +314,90 @@ Markdown 渲染模块。
 cd /Users/wangyilin/Downloads/西交/Rust程序设计/RustProject/minizensical
 ```
 
-### 步骤 2：准备配置文件
+### 步骤 2：看一下默认配置
 
-项目根目录已经有一个示例 `zensical.toml`。
-
-当前示例：
+根目录的 `zensical.toml` 当前示例非常简单：
 
 ```toml
 [project]
-site_name = "MiniZensical Demo"
+site_name = "MiniZensical Course Showcase"
 docs_dir = "docs"
 site_dir = "site"
 use_directory_urls = true
-
-nav = [
-  { title = "Home", path = "index.md" },
-  { title = "Guide", children = [
-    { title = "Overview", path = "guide/index.md" },
-    { title = "Setup", path = "guide/setup.md" },
-    { title = "Resources", path = "guide/resources.md" },
-  ] }
-]
 ```
 
-### 步骤 3：在 `docs/` 中写 Markdown
+这里没有写 `nav`，表示使用自动导航。
 
-比如：
-
-```text
-docs/
-├── index.md
-└── guide/
-    ├── index.md
-    ├── setup.md
-    └── resources.md
-```
-
-### 步骤 4：执行构建
+### 步骤 3：生成站点
 
 ```bash
 cargo run -- build
 ```
 
-如果你要显式指定配置文件：
+如果想手动指定配置文件：
 
 ```bash
 cargo run -- build --config zensical.toml
 ```
 
-### 步骤 5：本地预览
+### 步骤 4：本地预览
 
 ```bash
 cargo run -- serve
 ```
 
-或者自定义地址：
-
-```bash
-cargo run -- serve --addr 127.0.0.1:4000
-```
-
-默认预览地址是：
+默认地址：
 
 ```text
 http://127.0.0.1:3000
 ```
 
-注意：
+自定义地址：
 
-- `serve` 会先自动执行一次构建
-- 它会自动监听 `docs/` 和 `zensical.toml` 的变化并重新构建
-- 成功重建后，预览页面会自动刷新
+```bash
+cargo run -- serve --addr 127.0.0.1:4000
+```
 
-### 步骤 6：查看生成结果
+### 步骤 5：看生成结果
 
-构建完成后，打开：
+构建完成后可以直接打开：
 
 ```text
 site/index.html
 ```
 
-直接用浏览器打开这个文件即可。
+但如果你要体验搜索，推荐使用 `serve`，因为浏览器对本地 `file://` 的 JSON 读取限制比较多。
 
-## 9. 配置文件怎么写
+## 8. `zensical.toml` 怎么写
 
-配置文件路径默认是项目根目录下的 `zensical.toml`。
-
-### `[project]`
-
-这是主配置块。
-
-### `site_name`
-
-站点名称。会显示在页面标题和侧边栏品牌位置。
-
-示例：
+### 基本配置
 
 ```toml
-site_name = "Rust Course Docs"
+[project]
+site_name = "MiniZensical Course Showcase"
+docs_dir = "docs"
+site_dir = "site"
+use_directory_urls = true
+site_url = "https://example.com"
 ```
 
-### `docs_dir`
+### 字段说明
+
+#### `site_name`
+
+站点名称。显示在侧边栏品牌和页面标题里。
+
+#### `docs_dir`
 
 文档源目录，默认是 `docs`。
 
-示例：
+#### `site_dir`
 
-```toml
-docs_dir = "docs"
-```
+输出目录，默认是 `site`。
 
-### `site_dir`
+#### `use_directory_urls`
 
-生成目录，默认是 `site`。
-
-示例：
-
-```toml
-site_dir = "site"
-```
-
-### `use_directory_urls`
-
-决定输出链接风格。
+控制输出链接风格。
 
 如果是 `true`：
 
@@ -446,111 +407,173 @@ site_dir = "site"
 
 - `guide/setup.md -> site/guide/setup.html`
 
-### `site_url`
+#### `site_url`
+
+可选。写了之后会生成 canonical URL。
+
+#### `nav`
 
 可选。
 
-如果填写，会生成页面 canonical URL。
+- 不写：自动导航，顺序由目录结构和 `order` 决定
+- 写了：显式导航，顺序和标题以配置为准
 
-示例：
-
-```toml
-site_url = "https://example.com"
-```
-
-### `nav`
-
-可选。
-
-如果不写，就按目录结构自动生成导航。
-
-如果写了，就按你定义的标题和顺序生成导航。
-
-叶子节点写法：
+显式导航示例：
 
 ```toml
-{ title = "Home", path = "index.md" }
-```
-
-分组节点写法：
-
-```toml
-{ title = "Guide", children = [
-  { title = "Overview", path = "guide/index.md" },
-  { title = "Resources", path = "guide/resources.md" }
-] }
+nav = [
+  { title = "Home", path = "index.md" },
+  { title = "Guide", children = [
+    { title = "Overview", path = "guide/index.md" },
+    { title = "Resources", path = "guide/resources.md" }
+  ] }
+]
 ```
 
 注意：
 
 - 一个导航项不能同时写 `path` 和 `children`
-- 一个导航项必须至少写其中一个
-- `path` 是相对于 `docs/` 的路径
+- `path` 必须相对 `docs/`
+- 如果显式 `nav` 和 front matter `order` 同时存在，导航顺序还是以 `nav` 为准
 
-## 10. 日常最常见的操作
+## 9. Front Matter 怎么用
 
-### 新增一页文档
-
-1. 在 `docs/` 下新建一个 `.md` 文件
-2. 如果你使用显式导航，再去 `zensical.toml` 的 `nav` 里加上它
-3. 重新执行 `cargo run -- build`
-
-### 修改站点标题
-
-改 `zensical.toml`：
-
-```toml
-site_name = "新的标题"
-```
-
-### 添加图片或其他资源
-
-把资源直接放进 `docs/` 里，例如：
-
-```text
-docs/assets/logo.png
-```
-
-构建后会复制到：
-
-```text
-site/assets/logo.png
-```
-
-Markdown 里这样引用图片：
+现在每个 Markdown 文件顶部都可以写一个可选的 YAML front matter：
 
 ```md
-![Logo](assets/logo.png)
+---
+title: Front Matter
+summary: Use metadata to control how the page is displayed and indexed.
+tags:
+  - guide
+  - metadata
+order: 2
+---
+# 这里仍然可以有 H1
 ```
 
-如果当前页面在 `docs/guide/` 下面，就写：
+### 支持字段
 
-```md
-![Logo](../assets/logo.png)
-```
+- `title`
+- `summary`
+- `tags`
+- `order`
 
-如果你只想做下载链接：
+### 规则
 
-```md
-[下载 Logo](assets/logo.png)
-```
+- `title` 优先级高于 Markdown 里的 `# H1`
+- `summary` 会显示在页面顶部，也会进入搜索结果摘要
+- `tags` 会显示成标签，也会进入搜索索引
+- `order` 只在自动导航下生效，用来调整同级页面顺序
 
-你们当前仓库里已经有一个实际示例文件：
+### 兼容性
+
+旧的 Markdown 页面不写 front matter 也完全可以继续构建。
+
+## 10. 搜索怎么工作
+
+这是第二阶段最重要的新增功能之一。
+
+### 构建时会发生什么
+
+执行 `build` 或 `serve` 时，系统会：
+
+1. 收集每个页面的标题
+2. 收集 `summary`
+3. 收集 `tags`
+4. 收集一级和二级标题
+5. 收集正文纯文本
+6. 生成 `site/search.json`
+
+### 浏览器里会发生什么
+
+页面加载后，前端搜索脚本会读取 `search.json`。
+
+搜索框支持检索：
+
+- 页面标题
+- 页面摘要
+- 标签
+- 一级/二级标题
+- 正文内容
+
+### 推荐演示搜索词
+
+你们现在的示例站点里，适合答辩时演示的关键词有：
+
+- `front matter`
+- `architecture`
+- `preview`
+- `search`
+
+## 11. 图片和其他资源怎么加
+
+把资源放进 `docs/` 任意位置即可。
+
+例如：
 
 ```text
 docs/assets/交大校徽-蓝色.png
 ```
 
-可以直接参考：
+构建后它会变成：
 
-- 首页 `docs/index.md`
-- 资源页 `docs/guide/resources.md`
+```text
+site/assets/交大校徽-蓝色.png
+```
 
-### 不想手写导航
+### 在根目录页面中引用
 
-删除 `zensical.toml` 里的 `nav`，系统会自动按目录结构生成。
+```md
+![校徽](assets/交大校徽-蓝色.png)
+```
 
-### 想本地预览站点
+### 在 `docs/guide/` 中引用
+
+```md
+![校徽](../assets/交大校徽-蓝色.png)
+```
+
+### 如果只想放一个链接
+
+```md
+[查看原图](../assets/交大校徽-蓝色.png)
+```
+
+示例可直接看：
+
+- `docs/index.md`
+- `docs/guide/resources.md`
+
+## 12. 日常最常见的操作
+
+### 新增一个页面
+
+1. 在 `docs/` 下创建新的 `.md`
+2. 需要排序时，加 front matter `order`
+3. 如果使用显式 `nav`，再去 `zensical.toml` 补上它
+4. 运行 `cargo run -- serve`
+
+### 修改页面标题
+
+有两种方式：
+
+1. 改 Markdown 的第一个 `# H1`
+2. 用 front matter 里的 `title`
+
+推荐第二种，因为更适合和搜索、摘要一起管理。
+
+### 修改页面顺序
+
+如果你使用自动导航，改 front matter：
+
+```yaml
+order: 2
+```
+
+如果你使用显式导航，去改 `zensical.toml` 的 `nav` 顺序。
+
+### 本地预览
 
 运行：
 
@@ -558,157 +581,136 @@ docs/assets/交大校徽-蓝色.png
 cargo run -- serve
 ```
 
-然后在浏览器打开：
-
-```text
-http://127.0.0.1:3000
-```
-
 当 `serve` 正在运行时：
 
-- 修改 `docs/` 下的 Markdown 会自动重建
-- 修改 `docs/` 下的图片或其他静态资源也会自动重建
-- 修改 `zensical.toml` 也会自动重建
-- 成功重建后，浏览器页面会自动刷新
+- 改 Markdown 会自动重建
+- 改图片或其他资源会自动重建
+- 改 `zensical.toml` 会自动重建
+- 成功重建后，浏览器会自动刷新
 
-### 想让链接变成 `.html`
+## 13. 如果你第一次读代码，建议顺序
 
-把：
+推荐阅读顺序：
 
-```toml
-use_directory_urls = true
-```
+1. `src/main.rs`
+   先看命令入口
 
-改成：
+2. `src/build.rs`
+   看整体流水线
 
-```toml
-use_directory_urls = false
-```
+3. `src/config.rs`
+   看配置是怎么进入系统的
 
-## 11. 如果你要读代码，建议从哪里开始
+4. `src/scanner.rs`
+   看输入文件怎么被识别
 
-如果你是第一次接触这个项目，我建议阅读顺序如下：
+5. `src/markdown.rs`
+   看 Markdown 和 front matter 是怎么解析的
 
-1. 先看 `src/main.rs`
-   了解命令怎么进来
+6. `src/page.rs`
+   看页面数据是怎么组织的
 
-2. 再看 `src/build.rs`
-   了解整体构建流水线
+7. `src/nav.rs`
+   看导航和顺序逻辑
 
-3. 再看 `src/config.rs`
-   了解配置是怎么进入系统的
+8. `src/search.rs`
+   看搜索索引怎么生成
 
-4. 再看 `src/scanner.rs`
-   了解输入文件是怎么被识别的
+9. `src/render.rs`
+   看最终页面、样式和前端搜索脚本
 
-5. 再看 `src/page.rs` + `src/markdown.rs`
-   了解 Markdown 页面是怎么建模和转换的
+10. `src/server.rs`
+    看预览服务器如何工作
 
-6. 再看 `src/nav.rs`
-   了解导航和前后页逻辑
+## 14. 如果你们之后继续扩展，优先改哪里
 
-7. 再看 `src/render.rs`
-   了解页面最终是怎么被拼装成 HTML 的
-
-8. 如果你关心预览功能，再看 `src/server.rs`
-   了解本地静态服务器如何工作
-
-## 12. 如果你们之后要扩展功能，应该改哪里
-
-### 想加搜索
+### 想增强搜索
 
 优先看：
 
-- `src/build.rs`
-- `src/page.rs`
+- `src/search.rs`
 - `src/render.rs`
+- `src/build.rs`
 
-思路通常是：
-
-- 先在构建阶段收集页面索引
-- 生成 `search.json`
-- 再在前端模板里加搜索框和搜索脚本
-
-### 想加 front matter
+### 想增加更多 front matter 字段
 
 优先看：
 
 - `src/markdown.rs`
 - `src/page.rs`
-- `src/config.rs`
 
-### 想增强本地预览服务器
-
-优先看：
-
-- `src/main.rs`
-- `src/build.rs`
-- `src/server.rs`
-
-### 想改页面样式
+### 想继续提升答辩展示效果
 
 优先看：
 
 - `src/render.rs`
+- `docs/index.md`
+- `docs/project-showcase.md`
 
-这里同时包含模板和内置 CSS。
-
-### 想改导航逻辑
+### 想改本地预览体验
 
 优先看：
 
-- `src/nav.rs`
+- `src/server.rs`
+- `src/build.rs`
 
-## 13. 常见问题
+## 15. 常见问题
 
 ### 为什么我改了 `site/` 里的 HTML，但下次又没了？
 
-因为 `site/` 是生成目录，每次 `build` 都会重建。应该改的是：
+因为 `site/` 是构建结果目录，每次构建都会重建。真正应该改的是：
 
-- 内容：`docs/`
-- 样式和模板：`src/render.rs`
+- 文档内容：`docs/`
+- 页面模板和样式：`src/render.rs`
 - 配置：`zensical.toml`
 
-### 为什么我在导航里写了路径却报错？
+### 为什么新增页面后左侧没显示？
 
-因为 `nav.path` 必须指向 `docs/` 里真实存在的 Markdown 文件，并且路径必须相对 `docs/`。
+可能是：
 
-### 为什么页面标题和 Markdown 第一个标题不一样？
+- 你使用的是显式 `nav`，但没有把新页面加进去
+- 你还没重新构建
 
-如果你在显式导航里写了 `title`，导航标题会覆盖页面显示标题，这是当前 MVP 的设计。
+如果正在运行 `cargo run -- serve`，保存文件后会自动重建。
 
-### 为什么我新增文档后左侧没显示？
+### 为什么 `title` 和 Markdown 第一个标题不一样？
 
-可能有两个原因：
+因为你写了 front matter `title`，它会覆盖 Markdown 的 H1。
 
-- 你使用的是显式导航，但没有在 `zensical.toml` 的 `nav` 中加入新页面
-- 你还没有重新执行 `cargo run -- build`
+### 为什么搜索框没有结果？
 
-如果你使用的是 `serve`，当前版本会在成功重建后自动刷新浏览器页面。
+先检查：
 
-## 14. 当前推荐的工作方式
+- 页面是否真的进入了 `docs/`
+- 有没有成功执行 `build` 或 `serve`
+- 是否存在 `site/search.json`
 
-对于你们四个人协作，我建议这样分工时阅读代码：
+另外，如果你直接用浏览器打开 `file://.../site/index.html`，部分浏览器会限制本地 JSON 读取。此时推荐用 `cargo run -- serve` 预览。
 
-- 负责 CLI / 配置的人，重点看 `src/main.rs` 和 `src/config.rs`
-- 负责 Markdown / 页面的人，重点看 `src/markdown.rs` 和 `src/page.rs`
-- 负责导航 / UI 的人，重点看 `src/nav.rs` 和 `src/render.rs`
-- 负责服务端预览的人，重点看 `src/server.rs`
-- 负责整体集成 / 测试的人，重点看 `src/build.rs`、`src/server.rs` 和 `tests/build.rs`
+## 16. 当前推荐的工作方式
 
-## 15. 文档维护规则
+如果你们四个人继续协作，我建议这样分工：
 
-从现在开始，这份 `README.md` 视为项目的一部分。
+- 负责 CLI / 配置的人：看 `src/main.rs`、`src/config.rs`
+- 负责 Markdown / front matter 的人：看 `src/markdown.rs`、`src/page.rs`
+- 负责搜索 / 前端交互的人：看 `src/search.rs`、`src/render.rs`
+- 负责预览 / 集成 / 测试的人：看 `src/build.rs`、`src/server.rs`、`tests/build.rs`
 
-只要后续发生下面这些变化，就应该同步更新这份文档：
+## 17. 文档维护规则
+
+从现在开始，`README.md` 视为项目的一部分。
+
+后续只要发生下面这些变化，就必须同步更新这份文档：
 
 - 新增命令
 - 修改配置字段
+- 新增或删除重要模块
+- 修改 front matter 规则
+- 修改搜索行为
 - 修改目录结构
 - 修改页面输出规则
-- 新增主要模块
 - 改变推荐使用方式
 
 简单说就是：
 
-代码怎么变，这份用户指导就怎么跟着变。
+**代码怎么变，这份用户指导就怎么跟着变。**

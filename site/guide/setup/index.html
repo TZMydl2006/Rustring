@@ -4,33 +4,71 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Setup - MiniZensical Demo</title>
+  <title>Setup &amp; Preview - MiniZensical Course Showcase</title>
+  
+  <meta name="description" content="The shortest path from editing Markdown to showing a refreshed page in the browser.">
+  
   
   <link rel="stylesheet" href="..&#x2f;..&#x2f;assets&#x2f;minizensical.css">
 </head>
-<body>
+<body data-search-index="..&#x2f;..&#x2f;search.json" data-site-home="..&#x2f;..&#x2f;index.html">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="..&#x2f;..&#x2f;index.html">MiniZensical Demo</a>
-      <ul class="nav-list"><li class="nav-item"><a href="../../index.html">Home</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Overview</a></li><li class="nav-item active"><a href="index.html">Setup</a></li><li class="nav-item"><a href="../resources/index.html">Resources</a></li></ul></li></ul>
+      <a class="brand" href="..&#x2f;..&#x2f;index.html">
+        <span class="brand-mark">MZ</span>
+        <span class="brand-copy">
+          <strong>MiniZensical Course Showcase</strong>
+          <span>Rust static docs with course-ready polish</span>
+        </span>
+      </a>
+
+      <section class="search-panel">
+        <label class="search-label" for="doc-search">Search docs</label>
+        <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, tags, and content">
+        <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
+        <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
+        <div id="search-results" class="search-results" hidden></div>
+      </section>
+
+      <div class="nav-shell">
+        <ul class="nav-list"><li class="nav-item"><a href="../../index.html">MiniZensical</a></li><li class="nav-item"><a href="../../project-showcase/index.html">Project Showcase</a></li><li class="nav-item active"><span class="nav-section">Guide</span><ul class="nav-list"><li class="nav-item"><a href="../index.html">Guide Overview</a></li><li class="nav-item active"><a href="index.html">Setup &amp; Preview</a></li><li class="nav-item"><a href="../front-matter/index.html">Front Matter</a></li><li class="nav-item"><a href="../resources/index.html">Resources</a></li></ul></li></ul>
+      </div>
     </aside>
+
     <main class="content">
-      <article class="page">
+      
+
+      <article class="page" id="page-start">
         <header class="page-header">
           <p class="eyebrow">MiniZensical</p>
-          <h1>Setup</h1>
+          
+          <div class="tag-list">
+            
+            <span class="tag-chip">guide</span>
+            
+            <span class="tag-chip">preview</span>
+            
+            <span class="tag-chip">setup</span>
+            
+          </div>
+          
+          <h1>Setup &amp; Preview</h1>
+          
+          <p class="page-summary">The shortest path from editing Markdown to showing a refreshed page in the browser.</p>
+          
         </header>
+
         <div class="page-body">
           <h1 id="setup">Setup</h1>
-<p>You only need a Rust toolchain to build MiniZensical.</p>
-<h2 id="steps">Steps</h2>
+<p>You only need a Rust toolchain to work with MiniZensical.</p>
+<h2 id="daily-workflow">Daily workflow</h2>
 <ol>
-<li>Prepare <code>zensical.toml</code></li>
-<li>Place Markdown files inside <code>docs/</code></li>
-<li>Run the build or serve command</li>
+<li>Edit Markdown or assets inside <code>docs/</code></li>
+<li>Run <code>cargo run -- serve</code></li>
+<li>Keep the browser open while you work</li>
 </ol>
-<h2 id="result">Result</h2>
-<p>Open <code>site/index.html</code> in a browser to view the generated site.</p>
 <h2 id="commands">Commands</h2>
 <p>Generate the static site:</p>
 <pre><code class="language-bash">cargo run -- build
@@ -38,31 +76,39 @@
 <p>Generate the site and start the local preview server:</p>
 <pre><code class="language-bash">cargo run -- serve
 </code></pre>
-<p>When <code>serve</code> is running, editing Markdown files, static assets, or <code>zensical.toml</code> will trigger an automatic rebuild.</p>
-<h2 id="adding-images-and-resources">Adding images and resources</h2>
-<p>Place images, PDFs, or other static files anywhere under <code>docs/</code>.</p>
-<p>For example:</p>
-<pre><code class="language-text">docs/assets/交大校徽-蓝色.png
-</code></pre>
-<p>Then reference it from Markdown using a relative path:</p>
-<pre><code class="language-md">![校徽](../assets/交大校徽-蓝色.png)
-</code></pre>
-<p>If you want a fuller example, open the <code>Resources</code> page in the guide.</p>
+<p>When <code>serve</code> is running, editing Markdown files, static assets, or <code>zensical.toml</code> triggers an automatic rebuild, and the browser page refreshes automatically after a successful rebuild.</p>
+<h2 id="why-this-matters-for-demos">Why this matters for demos</h2>
+<p>During a classroom presentation, this workflow makes it easy to:</p>
+<ul>
+<li>edit a page</li>
+<li>save the file</li>
+<li>show the new page state immediately</li>
+</ul>
+<p>That makes the project feel much more alive than a one-time static export.</p>
 
         </div>
+
         <nav class="pager">
           
-          <a class="pager-link" href="..&#x2f;index.html">Previous: Overview</a>
+          <a class="pager-link" href="..&#x2f;index.html">
+            <span class="pager-eyebrow">Previous</span>
+            <strong>Guide Overview</strong>
+          </a>
           
+
           
-          <a class="pager-link" href="..&#x2f;resources&#x2f;index.html">Next: Resources</a>
+          <a class="pager-link align-right" href="..&#x2f;front-matter&#x2f;index.html">
+            <span class="pager-eyebrow">Next</span>
+            <strong>Front Matter</strong>
+          </a>
           
         </nav>
       </article>
     </main>
+
     <aside class="toc">
       <div class="toc-card">
-        <h2>On this page</h2>
+        <p class="toc-label">On this page</p>
         
         <ul class="toc-list">
           
@@ -71,11 +117,7 @@
           </li>
           
           <li class="toc-level-2">
-            <a href="#steps">Steps</a>
-          </li>
-          
-          <li class="toc-level-2">
-            <a href="#result">Result</a>
+            <a href="#daily-workflow">Daily workflow</a>
           </li>
           
           <li class="toc-level-2">
@@ -83,7 +125,7 @@
           </li>
           
           <li class="toc-level-2">
-            <a href="#adding-images-and-resources">Adding images and resources</a>
+            <a href="#why-this-matters-for-demos">Why this matters for demos</a>
           </li>
           
         </ul>
@@ -91,5 +133,7 @@
       </div>
     </aside>
   </div>
+
+  <script src="..&#x2f;..&#x2f;assets&#x2f;minizensical-search.js"></script>
 </body>
 </html>

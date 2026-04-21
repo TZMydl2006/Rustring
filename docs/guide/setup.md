@@ -1,16 +1,21 @@
+---
+title: Setup & Preview
+summary: The shortest path from editing Markdown to showing a refreshed page in the browser.
+tags:
+  - guide
+  - preview
+  - setup
+order: 1
+---
 # Setup
 
-You only need a Rust toolchain to build MiniZensical.
+You only need a Rust toolchain to work with MiniZensical.
 
-## Steps
+## Daily workflow
 
-1. Prepare `zensical.toml`
-2. Place Markdown files inside `docs/`
-3. Run the build or serve command
-
-## Result
-
-Open `site/index.html` in a browser to view the generated site.
+1. Edit Markdown or assets inside `docs/`
+2. Run `cargo run -- serve`
+3. Keep the browser open while you work
 
 ## Commands
 
@@ -26,22 +31,14 @@ Generate the site and start the local preview server:
 cargo run -- serve
 ```
 
-When `serve` is running, editing Markdown files, static assets, or `zensical.toml` will trigger an automatic rebuild, and the browser page will refresh automatically after a successful rebuild.
+When `serve` is running, editing Markdown files, static assets, or `zensical.toml` triggers an automatic rebuild, and the browser page refreshes automatically after a successful rebuild.
 
-## Adding images and resources
+## Why this matters for demos
 
-Place images, PDFs, or other static files anywhere under `docs/`.
+During a classroom presentation, this workflow makes it easy to:
 
-For example:
+- edit a page
+- save the file
+- show the new page state immediately
 
-```text
-docs/assets/交大校徽-蓝色.png
-```
-
-Then reference it from Markdown using a relative path:
-
-```md
-![校徽](../assets/交大校徽-蓝色.png)
-```
-
-If you want a fuller example, open the `Resources` page in the guide.
+That makes the project feel much more alive than a one-time static export.

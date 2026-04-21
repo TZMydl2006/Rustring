@@ -82,7 +82,7 @@ impl Navigation {
 
     fn build_auto(pages: &mut [Page]) -> Self {
         let mut indices = (0..pages.len()).collect::<Vec<_>>();
-        indices.sort_by_key(|index| auto_sort_key(&pages[*index].relative_source));
+        indices.sort_by_key(|index| auto_sort_key(&pages[*index]));
 
         let mut items = Vec::new();
         for index in indices {
@@ -287,10 +287,16 @@ pub fn relative_href(from_file: &Path, to_file: &Path) -> String {
     }
 }
 
-fn auto_sort_key(path: &Path) -> (Vec<String>, bool, String) {
+fn auto_sort_key(page: &Page) -> (Vec<String>, i32, bool, String) {
+    let path = &page.relative_source;
     let mut components = path_components(path);
     let file = components.pop().unwrap_or_default();
-    (components, !is_index_markdown(path), file)
+    (
+        components,
+        page.metadata.order.unwrap_or(i32::MAX),
+        !is_index_markdown(path),
+        file,
+    )
 }
 
 fn path_components(path: &Path) -> Vec<String> {

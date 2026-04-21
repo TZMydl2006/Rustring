@@ -25,6 +25,14 @@ pub enum MiniZensicalError {
         #[source]
         source: toml::de::Error,
     },
+    #[error("failed to parse front matter in {path}: {message}")]
+    FrontMatter { path: PathBuf, message: String },
+    #[error("failed to serialize search index at {path}: {source}")]
+    SerializeSearch {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
     #[error("invalid config: {0}")]
     InvalidConfig(String),
     #[error("template rendering failed: {0}")]

@@ -1,46 +1,50 @@
+---
+title: MiniZensical
+summary: A Rust course project that keeps the zensical workflow and adds searchable docs, front matter, tags, and a more presentation-ready reading experience.
+tags:
+  - home
+  - rust
+  - search
+order: 0
+---
 # MiniZensical
 
-MiniZensical is a tiny documentation site generator written in Rust.
-
-## Why this project
-
-We keep the core zensical workflow:
+MiniZensical is our course-friendly version of zensical. It keeps the core pipeline:
 
 - read `zensical.toml`
-- scan `docs/`
-- turn Markdown into HTML pages
-- build navigation and a page table of contents
-- emit a static site into `site/`
+- scan Markdown and static assets from `docs/`
+- build HTML pages into `site/`
+- preview locally with `cargo run -- serve`
 
-## What is included
+## What is new in phase 2
 
-The current version already supports two core workflows:
+The second stage adds features that make the project easier to show in class:
 
-- `cargo run -- build` to generate the static site
-- `cargo run -- serve` to build once and start a local preview server
+- instant client-side search
+- YAML front matter for page metadata
+- tags and summaries at the page level
+- a more polished reading layout for demos
 
-## Add images and assets
+## Search ideas for the demo
 
-Any non-Markdown file placed under `docs/` is copied to the same relative path inside `site/`.
+Try these queries in the search box:
 
-For example, this image lives at:
+- `front matter`
+- `architecture`
+- `preview`
+- `school badge`
 
-```text
-docs/assets/交大校徽-蓝色.png
-```
+## Static resource example
 
-On the homepage, the relative Markdown path is:
-
-```md
-![西安交大校徽](assets/交大校徽-蓝色.png)
-```
-
-The result looks like this:
+This image is copied from `docs/assets/交大校徽-蓝色.png` to `site/assets/交大校徽-蓝色.png`.
 
 ![西安交大校徽](assets/交大校徽-蓝色.png)
-
-You can also create a normal download/view link:
 
 [查看原图](assets/交大校徽-蓝色.png)
 
-More examples are collected on the `Guide / Resources` page.
+## Suggested presentation flow
+
+1. Open the homepage and explain that this is a minimal zensical-inspired generator.
+2. Search for `front matter` or `architecture`.
+3. Open the guide pages to show metadata and automatic ordering.
+4. Open the project showcase page to explain your innovation story.

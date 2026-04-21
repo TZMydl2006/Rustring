@@ -1,14 +1,5 @@
 [project]
-site_name = "MiniZensical Demo"
+site_name = "MiniZensical Course Showcase"
 docs_dir = "docs"
 site_dir = "site"
 use_directory_urls = true
-
-nav = [
-  { title = "Home", path = "index.md" },
-  { title = "Guide", children = [
-    { title = "Overview", path = "guide/index.md" },
-    { title = "Setup", path = "guide/setup.md" },
-    { title = "Resources", path = "guide/resources.md" },
-  ] }
-]

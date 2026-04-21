@@ -2,8 +2,11 @@ use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
 use crate::nav::{Navigation, relative_href};
 use crate::page::Page;
-use crate::render::{render_page, stylesheet_contents, stylesheet_path};
+use crate::render::{
+    render_page, search_script_contents, search_script_path, stylesheet_contents, stylesheet_path,
+};
 use crate::scanner::scan_site;
+use crate::search::{build_search_index, search_index_path};
 use std::fs;
 use std::path::Path;
 use std::process;
@@ -72,6 +75,7 @@ fn build_site_contents(config: &Config) -> Result<()> {
 
     let navigation = Navigation::build(&config.project.nav, &mut pages)?;
     write_theme_assets(config)?;
+    write_search_index(config, &pages)?;
     render_pages(config, &pages, &navigation)?;
     copy_assets(config, &sources.asset_files)?;
     Ok(())
@@ -92,13 +96,33 @@ fn unique_dir_name(prefix: &str) -> String {
 }
 
 fn write_theme_assets(config: &Config) -> Result<()> {
-    let path = config.site_path_for(stylesheet_path());
+    write_asset(config, stylesheet_path(), stylesheet_contents().as_bytes())?;
+    write_asset(
+        config,
+        search_script_path(),
+        search_script_contents().as_bytes(),
+    )?;
+    Ok(())
+}
+
+fn write_asset(config: &Config, relative_path: std::path::PathBuf, contents: &[u8]) -> Result<()> {
+    let path = config.site_path_for(relative_path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|error| MiniZensicalError::io("create", parent, error))?;
     }
-    fs::write(&path, stylesheet_contents())
-        .map_err(|error| MiniZensicalError::io("write", &path, error))
+    fs::write(&path, contents).map_err(|error| MiniZensicalError::io("write", &path, error))
+}
+
+fn write_search_index(config: &Config, pages: &[Page]) -> Result<()> {
+    let path = config.site_path_for(search_index_path());
+    let index = build_search_index(pages, config.project.use_directory_urls);
+    let contents =
+        serde_json::to_vec_pretty(&index).map_err(|source| MiniZensicalError::SerializeSearch {
+            path: path.clone(),
+            source,
+        })?;
+    fs::write(&path, contents).map_err(|error| MiniZensicalError::io("write", &path, error))
 }
 
 fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Result<()> {
@@ -107,6 +131,11 @@ fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Res
         let home_href = relative_href(&page.output_path, Path::new("index.html"));
         let stylesheet_href =
             relative_href(&page.output_path, Path::new("assets/minizensical.css"));
+        let search_script_href = relative_href(
+            &page.output_path,
+            Path::new("assets/minizensical-search.js"),
+        );
+        let search_index_href = relative_href(&page.output_path, Path::new("search.json"));
         let html = render_page(
             config,
             page,
@@ -115,6 +144,8 @@ fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Res
             next_page,
             &home_href,
             &stylesheet_href,
+            &search_script_href,
+            &search_index_href,
         )?;
         let output_path = page.target_path(config);
         if let Some(parent) = output_path.parent() {

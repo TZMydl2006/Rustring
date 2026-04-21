@@ -1,6 +1,14 @@
+---
+title: Guide Overview
+summary: The guide section explains the everyday workflow for building, previewing, and extending MiniZensical.
+tags:
+  - guide
+  - workflow
+order: 0
+---
 # Guide Overview
 
-This section demonstrates nested navigation.
+This section is for teammates who are new to the repo.
 
 ## Build command
 
@@ -24,13 +32,10 @@ Then open:
 http://127.0.0.1:3000
 ```
 
-The preview server now rebuilds automatically when files in `docs/` or `zensical.toml` change, and the open browser page will reload automatically after a successful rebuild.
+The preview server rebuilds automatically when files in `docs/` or `zensical.toml` change, and the open browser page reloads after a successful rebuild.
 
-## Output
+## What to open next
 
-The generated site is written into the `site/` directory.
-
-## Next pages
-
-- `Setup` explains the basic project workflow
-- `Resources` shows how to reference images and other static files
+- `Setup & Preview` for the daily workflow
+- `Front Matter` for metadata fields like `summary`, `tags`, and `order`
+- `Resources` for images and static files

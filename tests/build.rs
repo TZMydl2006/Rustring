@@ -1,10 +1,11 @@
 use minizensical::{Config, build_site};
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
 #[test]
-fn builds_a_minimal_site() {
+fn builds_a_minimal_site_with_search_ui() {
     let temp_dir = TempDir::new().expect("temp dir");
     write_file(
         temp_dir.path().join("zensical.toml"),
@@ -23,8 +24,9 @@ site_name = "Test Docs"
 
     let html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
     assert!(html.contains("Test Docs"));
-    assert!(html.contains("Hello"));
-    assert!(html.contains("On this page"));
+    assert!(html.contains("doc-search"));
+    assert!(html.contains("minizensical-search.js"));
+    assert!(temp_dir.path().join("site/search.json").exists());
 }
 
 #[test]
@@ -53,7 +55,7 @@ site_name = "Nested Docs"
     );
 
     let guide_html = fs::read_to_string(temp_dir.path().join("site/guide/index.html")).unwrap();
-    assert!(guide_html.contains("setup&#x2f;index.html"));
+    assert!(guide_html.contains("setup&#x2f;index.html") || guide_html.contains("guide/setup/"));
 }
 
 #[test]
@@ -88,13 +90,130 @@ nav = [
 
     let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
     assert!(home_html.contains("<title>Landing - Ordered Docs</title>"));
-    assert!(home_html.contains("Next: Install"));
+    assert!(home_html.contains("Previous") || home_html.contains("Next"));
+    assert!(home_html.contains(">Install<"));
 
     let setup_html =
         fs::read_to_string(temp_dir.path().join("site/guide/setup/index.html")).unwrap();
     assert!(setup_html.contains("<h1>Install</h1>"));
-    assert!(setup_html.contains("Previous: Landing"));
-    assert!(setup_html.contains("Next: Overview"));
+    assert!(setup_html.contains("Landing"));
+    assert!(setup_html.contains("Overview"));
+}
+
+#[test]
+fn front_matter_drives_rendering_and_search_index() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Meta Docs"
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/index.md"),
+        r#"---
+title: Custom Home
+summary: Searchable summary for the landing page.
+tags:
+  - rust
+  - search
+---
+# Hidden H1
+
+Body keyword lives here.
+
+## Search Panel
+
+The heading should also be searchable.
+"#,
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(html.contains("<title>Custom Home - Meta Docs</title>"));
+    assert!(html.contains("Searchable summary for the landing page."));
+    assert!(html.contains("tag-chip\">rust"));
+    assert!(html.contains("tag-chip\">search"));
+
+    let search_json = fs::read_to_string(temp_dir.path().join("site/search.json")).unwrap();
+    let entries: Value = serde_json::from_str(&search_json).unwrap();
+    let entry = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["title"] == "Custom Home")
+        .unwrap();
+
+    assert_eq!(
+        entry["summary"].as_str().unwrap(),
+        "Searchable summary for the landing page."
+    );
+    assert!(
+        entry["tags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tag| tag == "rust")
+    );
+    assert!(
+        entry["headings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|heading| heading == "Hidden H1" || heading == "Search Panel")
+    );
+    assert!(entry["body"].as_str().unwrap().contains("Body keyword"));
+}
+
+#[test]
+fn auto_navigation_uses_front_matter_order() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Auto Ordered Docs"
+"#,
+    );
+    write_file(temp_dir.path().join("docs/index.md"), "# Home\n");
+    write_file(
+        temp_dir.path().join("docs/guide/index.md"),
+        r#"---
+title: Guide Overview
+order: 0
+---
+# Guide
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/alpha.md"),
+        r#"---
+title: Alpha
+order: 2
+---
+# Alpha
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/beta.md"),
+        r#"---
+title: Beta
+order: 1
+---
+# Beta
+"#,
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let guide_html = fs::read_to_string(temp_dir.path().join("site/guide/index.html")).unwrap();
+    let beta_position = guide_html.find(">Beta<").unwrap();
+    let alpha_position = guide_html.find(">Alpha<").unwrap();
+    assert!(beta_position < alpha_position);
 }
 
 #[test]

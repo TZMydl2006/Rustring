@@ -6,6 +6,7 @@ pub mod nav;
 pub mod page;
 pub mod render;
 pub mod scanner;
+pub mod search;
 pub mod server;
 
 pub use build::build_site;

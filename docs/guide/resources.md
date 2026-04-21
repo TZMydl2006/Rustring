@@ -1,3 +1,11 @@
+---
+title: Resources
+summary: Images, PDFs, and other files placed under docs/ are copied into the generated site at the same relative path.
+tags:
+  - guide
+  - assets
+order: 3
+---
 # Resources
 
 This page shows how to use images and other static files in MiniZensical.
@@ -45,5 +53,5 @@ Actual example:
 
 - Put reusable images in `docs/assets/`
 - Use paths relative to the current Markdown file
-- After adding a new image or resource, run `cargo run -- build`
-- If `cargo run -- serve` is already running, saving the file is enough to trigger a rebuild and page refresh
+- Run `cargo run -- build` for a one-time export
+- If `cargo run -- serve` is already running, saving the file is enough to trigger a rebuild and refresh
