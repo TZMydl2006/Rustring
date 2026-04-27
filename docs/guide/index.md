@@ -39,3 +39,7 @@ The preview server rebuilds automatically when files in `docs/` or `zensical.tom
 - `Setup & Preview` for the daily workflow
 - `Front Matter` for metadata fields like `summary`, `tags`, and `order`
 - `Resources` for images and static files
+
+## Theme switching
+
+Use the sidebar buttons to switch between `Day`, `Night`, and `System` themes. `System` follows the browser or operating system preference, and the last manual choice is saved in the browser.

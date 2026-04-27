@@ -13,6 +13,7 @@ pub fn render_page(
     next_page: Option<PageLink>,
     home_href: &str,
     stylesheet_href: &str,
+    theme_script_href: &str,
     search_script_href: &str,
     search_index_href: &str,
 ) -> Result<String> {
@@ -39,6 +40,8 @@ pub fn render_page(
         next_page => next_page,
         home_href => home_href.to_string(),
         stylesheet_href => stylesheet_href.to_string(),
+        theme_boot_script => theme_boot_script(),
+        theme_script_href => theme_script_href.to_string(),
         search_script_href => search_script_href.to_string(),
         search_index_href => search_index_href.to_string(),
     })?;
@@ -62,6 +65,14 @@ pub fn search_script_contents() -> &'static str {
     SEARCH_SCRIPT
 }
 
+pub fn theme_script_path() -> PathBuf {
+    PathBuf::from("assets/minizensical-theme.js")
+}
+
+pub fn theme_script_contents() -> &'static str {
+    THEME_SCRIPT
+}
+
 const MAIN_TEMPLATE: &str = r##"
 <!doctype html>
 <html lang="en">
@@ -75,6 +86,7 @@ const MAIN_TEMPLATE: &str = r##"
   {% if canonical_url %}
   <link rel="canonical" href="{{ canonical_url }}">
   {% endif %}
+  <script>{{ theme_boot_script | safe }}</script>
   <link rel="stylesheet" href="{{ stylesheet_href }}">
 </head>
 <body data-search-index="{{ search_index_href }}" data-site-home="{{ home_href }}">
@@ -96,6 +108,16 @@ const MAIN_TEMPLATE: &str = r##"
         <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
         <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
         <div id="search-results" class="search-results" hidden></div>
+      </section>
+
+      <section class="theme-panel">
+        <p class="theme-label">Theme</p>
+        <div class="theme-toggle" data-theme-switcher>
+          <button type="button" class="theme-option" data-theme-choice="light">Day</button>
+          <button type="button" class="theme-option" data-theme-choice="dark">Night</button>
+          <button type="button" class="theme-option" data-theme-choice="system">System</button>
+        </div>
+        <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
       </section>
 
       <div class="nav-shell">
@@ -193,6 +215,7 @@ const MAIN_TEMPLATE: &str = r##"
     </aside>
   </div>
 
+  <script src="{{ theme_script_href }}"></script>
   <script src="{{ search_script_href }}"></script>
 </body>
 </html>
@@ -212,7 +235,44 @@ const STYLE_SHEET: &str = r#"
   --warm: #c46c3b;
   --line: rgba(16, 34, 35, 0.1);
   --shadow: 0 22px 60px rgba(12, 37, 39, 0.1);
+  --bg-top: #f7f7f1;
+  --panel-solid: rgba(255, 255, 255, 0.92);
+  --search-surface: rgba(255, 255, 255, 0.92);
+  --hero-surface: linear-gradient(145deg, rgba(13, 109, 104, 0.96), rgba(8, 72, 69, 0.94)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent);
+  --hero-text: #ffffff;
+  --hero-subtle: rgba(255, 255, 255, 0.86);
+  --ambient-a: rgba(196, 108, 59, 0.14);
+  --ambient-b: rgba(13, 109, 104, 0.12);
+  --code-bg: #102123;
+  --code-ink: #eef5f3;
   font-family: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1417;
+  --panel: rgba(17, 25, 29, 0.86);
+  --panel-strong: rgba(20, 29, 34, 0.94);
+  --ink: #edf4f2;
+  --muted: #9fb4b5;
+  --accent: #79d6d0;
+  --accent-soft: rgba(121, 214, 208, 0.12);
+  --accent-strong: #d8fffb;
+  --warm: #f2ad7d;
+  --line: rgba(205, 232, 232, 0.1);
+  --shadow: 0 24px 70px rgba(2, 8, 10, 0.45);
+  --bg-top: #131d21;
+  --panel-solid: rgba(16, 23, 27, 0.92);
+  --search-surface: rgba(13, 20, 24, 0.92);
+  --hero-surface: linear-gradient(145deg, rgba(8, 32, 35, 0.96), rgba(16, 76, 82, 0.92)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.02), transparent);
+  --hero-text: #f4fcfb;
+  --hero-subtle: rgba(244, 252, 251, 0.78);
+  --ambient-a: rgba(242, 173, 125, 0.12);
+  --ambient-b: rgba(121, 214, 208, 0.12);
+  --code-bg: #081114;
+  --code-ink: #d9f7f4;
 }
 
 * {
@@ -228,9 +288,9 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    radial-gradient(circle at 0% 0%, rgba(196, 108, 59, 0.18), transparent 28%),
-    radial-gradient(circle at 100% 20%, rgba(13, 109, 104, 0.18), transparent 30%),
-    linear-gradient(180deg, #f7f7f1 0%, #edf1ee 100%);
+    radial-gradient(circle at 0% 0%, var(--ambient-a), transparent 28%),
+    radial-gradient(circle at 100% 20%, var(--ambient-b), transparent 30%),
+    linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 100%);
   position: relative;
 }
 
@@ -257,7 +317,7 @@ pre {
   width: 220px;
   height: 220px;
   border-radius: 999px;
-  background: rgba(196, 108, 59, 0.14);
+  background: var(--ambient-a);
 }
 
 .ambient-b {
@@ -266,7 +326,7 @@ pre {
   width: 260px;
   height: 260px;
   border-radius: 999px;
-  background: rgba(13, 109, 104, 0.12);
+  background: var(--ambient-b);
 }
 
 .shell {
@@ -340,9 +400,22 @@ pre {
   padding: 18px;
 }
 
+.theme-panel {
+  padding: 18px;
+}
+
 .search-label {
   display: block;
   margin-bottom: 10px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-strong);
+}
+
+.theme-label {
+  margin: 0 0 10px;
   font-size: 0.86rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -356,7 +429,7 @@ pre {
   border-radius: 16px;
   padding: 13px 14px;
   font: inherit;
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--panel-solid);
   color: var(--ink);
 }
 
@@ -390,7 +463,7 @@ pre {
   text-decoration: none;
   border-radius: 18px;
   border: 1px solid rgba(13, 109, 104, 0.08);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--search-surface);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
@@ -422,6 +495,42 @@ pre {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+
+.theme-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-option {
+  border: 1px solid rgba(13, 109, 104, 0.16);
+  background: var(--panel-solid);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.theme-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(13, 109, 104, 0.35);
+}
+
+.theme-option.is-active {
+  background: var(--accent);
+  color: var(--hero-text);
+  border-color: transparent;
+}
+
+.theme-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .nav-shell {
@@ -485,10 +594,8 @@ pre {
 
 .hero-copy {
   border-radius: 28px;
-  background:
-    linear-gradient(145deg, rgba(13, 109, 104, 0.96), rgba(8, 72, 69, 0.94)),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent);
-  color: white;
+  background: var(--hero-surface);
+  color: var(--hero-text);
   box-shadow: 0 24px 60px rgba(8, 72, 69, 0.24);
 }
 
@@ -503,7 +610,7 @@ pre {
   max-width: 60ch;
   font-size: 1.02rem;
   line-height: 1.75;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--hero-subtle);
 }
 
 .hero-actions {
@@ -530,7 +637,7 @@ pre {
 
 .hero-button.secondary {
   background: rgba(255, 255, 255, 0.12);
-  color: white;
+  color: var(--hero-text);
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
@@ -540,7 +647,7 @@ pre {
 }
 
 .hero-card {
-  background: linear-gradient(180deg, rgba(255, 255, 253, 0.96), rgba(246, 249, 246, 0.92));
+  background: linear-gradient(180deg, var(--panel-solid), var(--panel));
 }
 
 .hero-card h2 {
@@ -638,8 +745,8 @@ pre {
   padding: 18px;
   overflow-x: auto;
   border-radius: 20px;
-  background: #102123;
-  color: #eef5f3;
+  background: var(--code-bg);
+  color: var(--code-ink);
 }
 
 .page-body :not(pre) > code {
@@ -810,6 +917,108 @@ pre {
   }
 }
 "#;
+
+const THEME_SCRIPT: &str = r#"
+(() => {
+  const storageKey = "minizensical-theme-choice";
+  const root = document.documentElement;
+  const buttons = Array.from(document.querySelectorAll("[data-theme-choice]"));
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+  const normalizeChoice = (value) => {
+    if (value === "light" || value === "dark") {
+      return value;
+    }
+    return "system";
+  };
+
+  const resolveTheme = (choice) => {
+    if (choice === "dark") {
+      return "dark";
+    }
+    if (choice === "light") {
+      return "light";
+    }
+    return media.matches ? "dark" : "light";
+  };
+
+  const applyChoice = (rawChoice) => {
+    const choice = normalizeChoice(rawChoice);
+    const theme = resolveTheme(choice);
+    root.dataset.themeChoice = choice;
+    root.dataset.theme = theme;
+
+    buttons.forEach((button) => {
+      const active = button.dataset.themeChoice === choice;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  };
+
+  const readStoredChoice = () => {
+    try {
+      return normalizeChoice(window.localStorage.getItem(storageKey));
+    } catch (_error) {
+      return normalizeChoice(root.dataset.themeChoice);
+    }
+  };
+
+  const persistChoice = (choice) => {
+    try {
+      if (choice === "system") {
+        window.localStorage.removeItem(storageKey);
+      } else {
+        window.localStorage.setItem(storageKey, choice);
+      }
+    } catch (_error) {
+      // Ignore persistence errors in restricted browsers.
+    }
+  };
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const choice = normalizeChoice(button.dataset.themeChoice);
+      persistChoice(choice);
+      applyChoice(choice);
+    });
+  });
+
+  const initialChoice = readStoredChoice();
+  applyChoice(initialChoice);
+
+  if (typeof media.addEventListener === "function") {
+    media.addEventListener("change", () => {
+      if (readStoredChoice() === "system") {
+        applyChoice("system");
+      }
+    });
+  }
+})();
+"#;
+
+fn theme_boot_script() -> &'static str {
+    r#"
+(() => {
+  const storageKey = "minizensical-theme-choice";
+  const root = document.documentElement;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+  let choice = "system";
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored === "light" || stored === "dark") {
+      choice = stored;
+    }
+  } catch (_error) {
+    // Ignore storage access failures and fall back to system mode.
+  }
+
+  const theme = choice === "system" ? (media.matches ? "dark" : "light") : choice;
+  root.dataset.themeChoice = choice;
+  root.dataset.theme = theme;
+})();
+"#
+}
 
 const SEARCH_SCRIPT: &str = r#"
 (() => {

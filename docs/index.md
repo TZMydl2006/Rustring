@@ -23,6 +23,7 @@ The second stage adds features that make the project easier to show in class:
 - instant client-side search
 - YAML front matter for page metadata
 - tags and summaries at the page level
+- a saved theme switcher with day, night, and system modes
 - a more polished reading layout for demos
 
 ## Search ideas for the demo

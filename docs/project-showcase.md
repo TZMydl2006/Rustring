@@ -21,11 +21,12 @@ We preserved the core static-site workflow:
 
 ## What we added
 
-Our version adds three visible upgrades:
+Our version adds four visible upgrades:
 
 1. `search.json` plus a live search box
 2. YAML front matter for summaries, tags, and ordering
-3. A more expressive UI for course demos
+3. Day / night / system theme switching with saved user preference
+4. A more expressive UI for course demos
 
 ## Architecture
 

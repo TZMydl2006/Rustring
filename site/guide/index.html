@@ -9,6 +9,27 @@
   <meta name="description" content="The guide section explains the everyday workflow for building, previewing, and extending MiniZensical.">
   
   
+  <script>
+(() => {
+  const storageKey = "minizensical-theme-choice";
+  const root = document.documentElement;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+  let choice = "system";
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored === "light" || stored === "dark") {
+      choice = stored;
+    }
+  } catch (_error) {
+    // Ignore storage access failures and fall back to system mode.
+  }
+
+  const theme = choice === "system" ? (media.matches ? "dark" : "light") : choice;
+  root.dataset.themeChoice = choice;
+  root.dataset.theme = theme;
+})();
+</script>
   <link rel="stylesheet" href="..&#x2f;assets&#x2f;minizensical.css">
 </head>
 <body data-search-index="..&#x2f;search.json" data-site-home="..&#x2f;index.html">
@@ -30,6 +51,16 @@
         <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
         <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
         <div id="search-results" class="search-results" hidden></div>
+      </section>
+
+      <section class="theme-panel">
+        <p class="theme-label">Theme</p>
+        <div class="theme-toggle" data-theme-switcher>
+          <button type="button" class="theme-option" data-theme-choice="light">Day</button>
+          <button type="button" class="theme-option" data-theme-choice="dark">Night</button>
+          <button type="button" class="theme-option" data-theme-choice="system">System</button>
+        </div>
+        <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
       </section>
 
       <div class="nav-shell">
@@ -79,6 +110,8 @@
 <li><code>Front Matter</code> for metadata fields like <code>summary</code>, <code>tags</code>, and <code>order</code></li>
 <li><code>Resources</code> for images and static files</li>
 </ul>
+<h2 id="theme-switching">Theme switching</h2>
+<p>Use the sidebar buttons to switch between <code>Day</code>, <code>Night</code>, and <code>System</code> themes. <code>System</code> follows the browser or operating system preference, and the last manual choice is saved in the browser.</p>
 
         </div>
 
@@ -122,12 +155,17 @@
             <a href="#what-to-open-next">What to open next</a>
           </li>
           
+          <li class="toc-level-2">
+            <a href="#theme-switching">Theme switching</a>
+          </li>
+          
         </ul>
         
       </div>
     </aside>
   </div>
 
+  <script src="..&#x2f;assets&#x2f;minizensical-theme.js"></script>
   <script src="..&#x2f;assets&#x2f;minizensical-search.js"></script>
 </body>
 </html>

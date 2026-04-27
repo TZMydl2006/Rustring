@@ -4,6 +4,7 @@ use crate::nav::{Navigation, relative_href};
 use crate::page::Page;
 use crate::render::{
     render_page, search_script_contents, search_script_path, stylesheet_contents, stylesheet_path,
+    theme_script_contents, theme_script_path,
 };
 use crate::scanner::scan_site;
 use crate::search::{build_search_index, search_index_path};
@@ -99,6 +100,11 @@ fn write_theme_assets(config: &Config) -> Result<()> {
     write_asset(config, stylesheet_path(), stylesheet_contents().as_bytes())?;
     write_asset(
         config,
+        theme_script_path(),
+        theme_script_contents().as_bytes(),
+    )?;
+    write_asset(
+        config,
         search_script_path(),
         search_script_contents().as_bytes(),
     )?;
@@ -131,6 +137,8 @@ fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Res
         let home_href = relative_href(&page.output_path, Path::new("index.html"));
         let stylesheet_href =
             relative_href(&page.output_path, Path::new("assets/minizensical.css"));
+        let theme_script_href =
+            relative_href(&page.output_path, Path::new("assets/minizensical-theme.js"));
         let search_script_href = relative_href(
             &page.output_path,
             Path::new("assets/minizensical-search.js"),
@@ -144,6 +152,7 @@ fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Res
             next_page,
             &home_href,
             &stylesheet_href,
+            &theme_script_href,
             &search_script_href,
             &search_index_href,
         )?;

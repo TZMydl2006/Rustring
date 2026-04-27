@@ -25,8 +25,16 @@ site_name = "Test Docs"
     let html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
     assert!(html.contains("Test Docs"));
     assert!(html.contains("doc-search"));
+    assert!(html.contains("data-theme-choice=\"dark\""));
+    assert!(html.contains("minizensical-theme.js"));
     assert!(html.contains("minizensical-search.js"));
     assert!(temp_dir.path().join("site/search.json").exists());
+    assert!(
+        temp_dir
+            .path()
+            .join("site/assets/minizensical-theme.js")
+            .exists()
+    );
 }
 
 #[test]
