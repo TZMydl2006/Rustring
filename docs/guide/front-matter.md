@@ -5,6 +5,7 @@ tags:
   - guide
   - metadata
   - front matter
+date: 2025-01-20
 order: 2
 ---
 # Front Matter

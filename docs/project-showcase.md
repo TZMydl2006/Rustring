@@ -5,6 +5,7 @@ tags:
   - course
   - showcase
   - architecture
+date: 2025-04-01
 order: 1
 ---
 # Project Showcase

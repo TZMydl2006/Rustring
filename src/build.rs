@@ -1,13 +1,15 @@
 use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
-use crate::nav::{Navigation, relative_href};
+use crate::nav::{Navigation, NavItem, PageLink, RenderNavItem, relative_href};
 use crate::page::Page;
 use crate::render::{
-    render_page, search_script_contents, search_script_path, stylesheet_contents, stylesheet_path,
+    render_page, render_archive_index, render_tag_archive, ArchiveSection, ArchiveGroup,
+    search_script_contents, search_script_path, stylesheet_contents, stylesheet_path,
     theme_script_contents, theme_script_path,
 };
 use crate::scanner::scan_site;
 use crate::search::{build_search_index, search_index_path};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 use std::process;
@@ -74,12 +76,194 @@ fn build_site_contents(config: &Config) -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
     pages.sort_by(|left, right| left.output_path.cmp(&right.output_path));
 
-    let navigation = Navigation::build(&config.project.nav, &mut pages)?;
+    let mut navigation = Navigation::build(&config.project.nav, &mut pages)?;
+    navigation.items.push(NavItem {
+        title: "Archive".to_string(),
+        target: None,
+        children: vec![
+            NavItem::page(
+                "By Date".to_string(),
+                String::new(),
+                Path::new("archive/index.html").to_path_buf(),
+            ),
+            NavItem::page(
+                "By Tags".to_string(),
+                String::new(),
+                Path::new("archive/tags/index.html").to_path_buf(),
+            ),
+        ],
+    });
     write_theme_assets(config)?;
+
+    let archive_page_path = Path::new("archive/index.html");
+    let tag_page_path = Path::new("archive/tags/index.html");
+    let archive_sections = build_date_archive(&pages, archive_page_path);
+    let tag_sections = build_tag_archive(&pages, tag_page_path);
+
+    // Build nav items for archive pages.
+    // Archive pages live at archive/index.html and archive/tags/index.html.
+    let archive_nav = vec![RenderNavItem {
+        title: "Archive".to_string(),
+        href: None,
+        children: vec![
+            RenderNavItem {
+                title: "By Date".to_string(),
+                href: Some("index.html".to_string()),
+                active: true,
+                children: vec![],
+            },
+            RenderNavItem {
+                title: "By Tags".to_string(),
+                href: Some("tags/index.html".to_string()),
+                active: false,
+                children: vec![],
+            },
+        ],
+        active: true,
+    }];
+
+    let tag_nav = vec![RenderNavItem {
+        title: "Archive".to_string(),
+        href: None,
+        children: vec![
+            RenderNavItem {
+                title: "By Date".to_string(),
+                href: Some("../index.html".to_string()),
+                active: false,
+                children: vec![],
+            },
+            RenderNavItem {
+                title: "By Tags".to_string(),
+                href: Some("index.html".to_string()),
+                active: true,
+                children: vec![],
+            },
+        ],
+        active: true,
+    }];
+
+    // Render archive pages
+    let archive_html = render_archive_index(
+        config,
+        &archive_sections,
+        &archive_nav,
+    )?;
+    write_archive_page(config, archive_page_path, &archive_html)?;
+
+    let tag_html = render_tag_archive(
+        config,
+        &tag_sections,
+        &tag_nav,
+    )?;
+    write_archive_page(config, tag_page_path, &tag_html)?;
+
     write_search_index(config, &pages)?;
     render_pages(config, &pages, &navigation)?;
     copy_assets(config, &sources.asset_files)?;
     Ok(())
+}
+
+fn build_date_archive(pages: &[Page], archive_page_path: &Path) -> Vec<ArchiveSection> {
+    let mut dated: BTreeMap<String, BTreeMap<String, Vec<PageLink>>> = BTreeMap::new();
+
+    for page in pages {
+        let date_str = match &page.metadata.date {
+            Some(d) => d.clone(),
+            None => continue,
+        };
+        let (year, month) = if date_str.len() >= 7 {
+            (date_str[..4].to_string(), Some(date_str[5..7].to_string()))
+        } else {
+            (date_str.clone(), None)
+        };
+
+        let href = relative_href(archive_page_path, &page.output_path);
+        let link = PageLink {
+            title: page.title.clone(),
+            href,
+        };
+
+        dated.entry(year.clone()).or_default();
+        let month_label = month
+            .as_ref()
+            .and_then(|m| match m.as_str() {
+                "01" => Some("January".to_string()),
+                "02" => Some("February".to_string()),
+                "03" => Some("March".to_string()),
+                "04" => Some("April".to_string()),
+                "05" => Some("May".to_string()),
+                "06" => Some("June".to_string()),
+                "07" => Some("July".to_string()),
+                "08" => Some("August".to_string()),
+                "09" => Some("September".to_string()),
+                "10" => Some("October".to_string()),
+                "11" => Some("November".to_string()),
+                "12" => Some("December".to_string()),
+                _ => None,
+            })
+            .unwrap_or_else(|| month.unwrap_or_default());
+
+        dated.get_mut(&year)
+            .unwrap()
+            .entry(month_label)
+            .or_default()
+            .push(link);
+    }
+
+    dated
+        .into_iter()
+        .rev()
+        .map(|(year, months)| ArchiveSection {
+            title: year,
+            groups: months
+                .into_iter()
+                .map(|(month, pages)| ArchiveGroup {
+                    title: month,
+                    pages,
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+fn build_tag_archive(pages: &[Page], archive_page_path: &Path) -> Vec<ArchiveSection> {
+    let mut by_tag: BTreeMap<String, Vec<PageLink>> = BTreeMap::new();
+
+    for page in pages {
+        let href = relative_href(archive_page_path, &page.output_path);
+        let link = PageLink {
+            title: page.title.clone(),
+            href,
+        };
+
+        if page.metadata.tags.is_empty() {
+            by_tag.entry("(untagged)".to_string()).or_default().push(link.clone());
+        } else {
+            for tag in &page.metadata.tags {
+                by_tag.entry(tag.clone()).or_default().push(link.clone());
+            }
+        }
+    }
+
+    by_tag
+        .into_iter()
+        .map(|(tag, pages)| ArchiveSection {
+            title: tag,
+            groups: vec![ArchiveGroup {
+                title: String::new(),
+                pages,
+            }],
+        })
+        .collect()
+}
+
+fn write_archive_page(config: &Config, relative_path: &Path, html: &str) -> Result<()> {
+    let path = config.site_path_for(relative_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| MiniZensicalError::io("create", parent, error))?;
+    }
+    fs::write(&path, html).map_err(|error| MiniZensicalError::io("write", &path, error))
 }
 
 fn cleanup_dir(path: &Path) {
