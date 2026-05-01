@@ -17,6 +17,7 @@ zensical.toml + docs/ -> site/
 - 浏览器自动刷新
 - YAML front matter
 - 页面标签和摘要
+- 页面归档（按日期 / 按标签）
 - 前端全文搜索
 - 多主题切换
 - 更适合课程展示的页面样式
@@ -153,6 +154,7 @@ Markdown 解析模块。
 - 标签
 - 摘要
 - 排序字段 `order`
+- 日期字段 `date`
 - 搜索摘要和纯文本内容
 
 这里还负责输出路径规则，例如：
@@ -189,6 +191,7 @@ HTML 渲染模块。
 - 内置 CSS
 - 内置主题切换脚本
 - 内置前端搜索脚本
+- 归档页模板与归档页渲染函数（按日期 / 按标签）
 - 把导航、TOC、正文、标签、摘要、搜索入口、主题切换入口注入页面
 
 如果你们要改答辩展示效果、页面布局、视觉风格，这里最关键。
@@ -217,10 +220,12 @@ HTML 渲染模块。
 3. 生成所有 `Page`
 4. 构建导航
 5. 写入内置 CSS、主题脚本和搜索脚本
-6. 生成 `search.json`
-7. 渲染所有 HTML 页面
-8. 复制静态资源
-9. 安全切换到最终 `site/`
+6. 构建归档数据（按日期 / 按标签）
+7. 渲染归档页面 `archive/index.html` 与 `archive/tags/index.html`
+8. 生成 `search.json`
+9. 渲染所有文档页 HTML
+10. 复制静态资源
+11. 安全切换到最终 `site/`
 
 ### `src/server.rs`
 
@@ -262,6 +267,8 @@ HTML 渲染模块。
 - `site/guide/index.html`
 - `site/guide/setup/index.html`
 - `site/guide/front-matter/index.html`
+- `site/archive/index.html`
+- `site/archive/tags/index.html`
 - `site/search.json`
 - `site/assets/minizensical.css`
 - `site/assets/minizensical-theme.js`
@@ -285,6 +292,8 @@ HTML 渲染模块。
 - YAML front matter
 - 页面摘要和标签
 - 页面排序字段 `order`
+- 页面日期字段 `date`
+- 页面归档（按日期页 / 按标签页）
 - 自动导航
 - 显式导航
 - 上一页 / 下一页链接
@@ -297,6 +306,26 @@ HTML 渲染模块。
 - 自动重建
 - 浏览器自动刷新
 
+## 5.1 本次增量：页面归档实现说明
+
+这次更新新增了两个归档入口：
+
+- `site/archive/index.html`：按日期归档（按年分组，组内按月份分组）
+- `site/archive/tags/index.html`：按标签归档（无标签页面归入 `(untagged)`）
+
+与功能直接相关的代码更新如下：
+
+- `src/page.rs`
+  `PageMetadata` 新增 `date: Option<String>`，用于承接 front matter 日期元数据。
+- `src/build.rs`
+  新增 `build_date_archive(...)`、`build_tag_archive(...)`、`write_archive_page(...)`，并在构建流水线中插入归档页渲染；同时向导航追加 `Archive -> By Date / By Tags`。
+- `src/render.rs`
+  新增 `ArchiveSection`/`ArchiveGroup` 数据结构、`render_archive_index(...)`、`render_tag_archive(...)`、`ARCHIVE_TEMPLATE` 以及归档页面样式。
+- `src/nav.rs`
+  `NavItem::section(...)` 与 `NavItem::page(...)` 改为 `pub`，用于在构建阶段组合归档导航项。
+- `docs/*.md`
+  示例文档 front matter 已补充 `date` 字段，用于驱动“按日期归档”。
+
 ## 6. 现在还没有做什么
 
 为了保持课程项目范围可控，目前还没有做：
@@ -307,7 +336,8 @@ HTML 渲染模块。
 - 可配置的主题包系统
 - 深度搜索排序优化
 - 服务端搜索 API
-- 作者 / 日期 / 归档系统
+- 作者信息系统（页面署名）
+- 多维归档筛选（例如作者、年份与标签联动过滤）
 - 复杂 taxonomy 自动页面生成
 
 ## 7. 如何快速跑起来
@@ -453,6 +483,7 @@ summary: Use metadata to control how the page is displayed and indexed.
 tags:
   - guide
   - metadata
+date: 2025-01-20
 order: 2
 ---
 # 这里仍然可以有 H1
@@ -464,6 +495,7 @@ order: 2
 - `summary`
 - `tags`
 - `order`
+- `date`
 
 ### 规则
 
@@ -471,6 +503,7 @@ order: 2
 - `summary` 会显示在页面顶部，也会进入搜索结果摘要
 - `tags` 会显示成标签，也会进入搜索索引
 - `order` 只在自动导航下生效，用来调整同级页面顺序
+- `date` 用于归档页分组，推荐格式 `YYYY-MM-DD`（如 `2025-04-01`）
 
 ### 兼容性
 
@@ -677,6 +710,14 @@ cargo run -- serve
 
 - `src/render.rs`
 - `src/build.rs`
+
+### 想继续扩展归档功能
+
+优先看：
+
+- `src/build.rs`（归档分组与输出入口）
+- `src/render.rs`（归档模板与样式）
+- `src/page.rs`（归档元数据字段）
 
 ### 想继续提升答辩展示效果
 

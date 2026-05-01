@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::nav::{PageLink, RenderNavItem};
 use crate::page::Page;
 use minijinja::{Environment, context};
+use serde::Serialize;
 use std::path::PathBuf;
 
 pub fn render_page(
@@ -46,6 +47,101 @@ pub fn render_page(
         search_index_href => search_index_href.to_string(),
     })?;
 
+    Ok(rendered)
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ArchiveGroup {
+    pub title: String,
+    pub pages: Vec<PageLink>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ArchiveSection {
+    pub title: String,
+    pub groups: Vec<ArchiveGroup>,
+}
+
+pub fn render_archive_index(
+    config: &Config,
+    sections: &[ArchiveSection],
+    navigation: &[RenderNavItem],
+) -> Result<String> {
+    let home_href = "..";
+    let stylesheet_href = "../assets/minizensical.css";
+    let theme_script_href = "../assets/minizensical-theme.js";
+    let search_script_href = "../assets/minizensical-search.js";
+    let search_index_href = "../search.json";
+
+    render_simple_page(
+        config,
+        "Archive",
+        "Browse all pages grouped by date.",
+        sections,
+        navigation,
+        home_href,
+        stylesheet_href,
+        theme_script_href,
+        search_script_href,
+        search_index_href,
+    )
+}
+
+pub fn render_tag_archive(
+    config: &Config,
+    sections: &[ArchiveSection],
+    navigation: &[RenderNavItem],
+) -> Result<String> {
+    let home_href = "../..";
+    let stylesheet_href = "../../assets/minizensical.css";
+    let theme_script_href = "../../assets/minizensical-theme.js";
+    let search_script_href = "../../assets/minizensical-search.js";
+    let search_index_href = "../../search.json";
+
+    render_simple_page(
+        config,
+        "Tags",
+        "Browse all pages grouped by tag.",
+        sections,
+        navigation,
+        home_href,
+        stylesheet_href,
+        theme_script_href,
+        search_script_href,
+        search_index_href,
+    )
+}
+
+fn render_simple_page(
+    config: &Config,
+    page_title: &str,
+    description: &str,
+    sections: &[ArchiveSection],
+    navigation: &[RenderNavItem],
+    home_href: &str,
+    stylesheet_href: &str,
+    theme_script_href: &str,
+    search_script_href: &str,
+    search_index_href: &str,
+) -> Result<String> {
+    let mut environment = Environment::new();
+    environment.add_template("archive.html", ARCHIVE_TEMPLATE)?;
+    let template = environment.get_template("archive.html")?;
+    let nav_html = render_navigation_html(navigation);
+    let rendered = template.render(context! {
+        site_name => config.project.site_name.clone(),
+        title => format!("{} - {}", page_title, config.project.site_name),
+        description => description.to_string(),
+        nav_html => nav_html,
+        archive_title => page_title.to_string(),
+        sections => sections.iter().collect::<Vec<_>>(),
+        home_href => home_href.to_string(),
+        stylesheet_href => stylesheet_href.to_string(),
+        theme_boot_script => theme_boot_script(),
+        theme_script_href => theme_script_href.to_string(),
+        search_script_href => search_script_href.to_string(),
+        search_index_href => search_index_href.to_string(),
+    })?;
     Ok(rendered)
 }
 
@@ -916,6 +1012,51 @@ pre {
     text-align: left;
   }
 }
+
+	.archive-section {
+	  margin-bottom: 2.8em;
+	}
+
+	.archive-section h2 {
+	  font-size: 1.6rem;
+	  margin: 0 0 1em;
+	  color: var(--accent-strong);
+	  border-bottom: 2px solid var(--line);
+	  padding-bottom: 0.4em;
+	}
+
+	.archive-group {
+	  margin: 1.2em 0 1.6em;
+	}
+
+	.archive-group-title {
+	  font-size: 1.1rem;
+	  margin: 0 0 0.6em;
+	  color: var(--warm);
+	}
+
+	.archive-list {
+	  list-style: none;
+	  padding: 0;
+	  margin: 0;
+	}
+
+	.archive-list li {
+	  margin: 0.5em 0;
+	  padding: 0;
+	}
+
+	.archive-list a {
+	  text-decoration: none;
+	  color: var(--accent);
+	  font-size: 1rem;
+	  transition: color 160ms ease, padding-left 160ms ease;
+	}
+
+	.archive-list a:hover {
+	  color: var(--accent-strong);
+	  padding-left: 4px;
+	}
 "#;
 
 const THEME_SCRIPT: &str = r#"
@@ -1144,6 +1285,90 @@ const SEARCH_SCRIPT: &str = r#"
   });
 })();
 "#;
+
+const ARCHIVE_TEMPLATE: &str = r##"
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <meta name="description" content="{{ description }}">
+  <script>{{ theme_boot_script | safe }}</script>
+  <link rel="stylesheet" href="{{ stylesheet_href }}">
+</head>
+<body data-search-index="{{ search_index_href }}" data-site-home="{{ home_href }}">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="{{ home_href }}">
+        <span class="brand-mark">MZ</span>
+        <span class="brand-copy">
+          <strong>{{ site_name }}</strong>
+          <span>Rust static docs with course-ready polish</span>
+        </span>
+      </a>
+
+      <section class="search-panel">
+        <label class="search-label" for="doc-search">Search docs</label>
+        <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, tags, and content">
+        <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
+        <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
+        <div id="search-results" class="search-results" hidden></div>
+      </section>
+
+      <section class="theme-panel">
+        <p class="theme-label">Theme</p>
+        <div class="theme-toggle" data-theme-switcher>
+          <button type="button" class="theme-option" data-theme-choice="light">Day</button>
+          <button type="button" class="theme-option" data-theme-choice="dark">Night</button>
+          <button type="button" class="theme-option" data-theme-choice="system">System</button>
+        </div>
+        <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
+      </section>
+
+      <div class="nav-shell">
+        {{ nav_html | safe }}
+      </div>
+    </aside>
+
+    <main class="content">
+      <article class="page archive-page">
+        <header class="page-header">
+          <p class="eyebrow">Archive</p>
+          <h1>{{ archive_title }}</h1>
+          <p class="page-summary">{{ description }}</p>
+        </header>
+
+        <div class="page-body">
+          {% for section in sections %}
+          <section class="archive-section">
+            <h2>{{ section.title }}</h2>
+            {% for group in section.groups %}
+            <div class="archive-group">
+              <h3 class="archive-group-title">{{ group.title }}</h3>
+              <ul class="archive-list">
+                {% for page in group.pages %}
+                <li>
+                  <a href="{{ page.href | safe }}">{{ page.title }}</a>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endfor %}
+          </section>
+          {% endfor %}
+        </div>
+      </article>
+    </main>
+  </div>
+
+  <script src="{{ theme_script_href }}"></script>
+  <script src="{{ search_script_href }}"></script>
+</body>
+</html>
+"##;
 
 fn render_navigation_html(items: &[RenderNavItem]) -> String {
     let mut html = String::from("<ul class=\"nav-list\">");

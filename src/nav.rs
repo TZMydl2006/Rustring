@@ -143,7 +143,7 @@ impl Navigation {
 }
 
 impl NavItem {
-    fn section(title: String) -> Self {
+    pub fn section(title: String) -> Self {
         Self {
             title,
             target: None,
@@ -151,7 +151,7 @@ impl NavItem {
         }
     }
 
-    fn page(title: String, source_key: String, output_path: PathBuf) -> Self {
+    pub fn page(title: String, source_key: String, output_path: PathBuf) -> Self {
         Self {
             title,
             target: Some(NavTarget {

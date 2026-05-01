@@ -5,6 +5,7 @@ tags:
   - home
   - rust
   - search
+date: 2025-03-15
 order: 0
 ---
 # MiniZensical

@@ -20,6 +20,7 @@ pub struct PageMetadata {
     #[serde(default)]
     pub tags: Vec<String>,
     pub order: Option<i32>,
+    pub date: Option<String>,
 }
 
 #[derive(Clone, Debug)]

@@ -266,6 +266,43 @@ use_directory_urls = false
 }
 
 #[test]
+fn archive_pages_use_correct_relative_links_to_content_pages() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Archive Docs"
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/project-case.md"),
+        r#"---
+title: Project Case
+tags:
+  - showcase
+date: 2025-04-01
+---
+# Project Case
+"#,
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let by_date_html = fs::read_to_string(temp_dir.path().join("site/archive/index.html")).unwrap();
+    assert!(by_date_html.contains("href=\"../project-case/index.html\""));
+    assert!(!by_date_html.contains("href=\"project-case/\""));
+    assert!(!by_date_html.contains("href=\"archive/project-case\""));
+
+    let by_tags_html =
+        fs::read_to_string(temp_dir.path().join("site/archive/tags/index.html")).unwrap();
+    assert!(by_tags_html.contains("href=\"../../project-case/index.html\""));
+    assert!(!by_tags_html.contains("href=\"project-case/\""));
+    assert!(!by_tags_html.contains("href=\"archive/project-case\""));
+}
+
+#[test]
 fn keeps_previous_site_when_rebuild_fails() {
     let temp_dir = TempDir::new().expect("temp dir");
     write_file(
