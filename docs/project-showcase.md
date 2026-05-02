@@ -54,3 +54,6 @@ If you want to showcase the search feature, try these words:
 - `metadata`
 - `preview`
 - `search`
+
+## Test photo display
+![test photo](../assets/交大校徽-蓝色.png)
