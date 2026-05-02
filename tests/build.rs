@@ -16,7 +16,11 @@ site_name = "Test Docs"
     );
     write_file(
         temp_dir.path().join("docs/index.md"),
-        "# Hello\n\n## Intro\n\nWelcome to the site.\n",
+        "# Hello\n\n## Intro\n\nWelcome to the site.\n\n```rust\nfn main() {\n    println!(\"hi\");\n}\n```\n",
+    );
+    write_file(
+        temp_dir.path().join("docs/assets/fonts/demo-sans.woff2"),
+        "placeholder font bytes",
     );
 
     let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
@@ -28,6 +32,9 @@ site_name = "Test Docs"
     assert!(html.contains("data-theme-choice=\"dark\""));
     assert!(html.contains("minizensical-theme.js"));
     assert!(html.contains("minizensical-search.js"));
+    assert!(html.contains("minizensical-code.js"));
+    assert!(html.contains("data-font-switcher"));
+    assert!(html.contains("Demo Sans"));
     assert!(temp_dir.path().join("site/search.json").exists());
     assert!(
         temp_dir
@@ -35,6 +42,15 @@ site_name = "Test Docs"
             .join("site/assets/minizensical-theme.js")
             .exists()
     );
+    assert!(
+        temp_dir
+            .path()
+            .join("site/assets/minizensical-code.js")
+            .exists()
+    );
+    let css = fs::read_to_string(temp_dir.path().join("site/assets/minizensical.css")).unwrap();
+    assert!(css.contains("@font-face"));
+    assert!(css.contains("fonts/demo-sans.woff2"));
 }
 
 #[test]
