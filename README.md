@@ -20,6 +20,8 @@ zensical.toml + docs/ -> site/
 - 页面归档（按日期 / 按标签）
 - 前端全文搜索
 - 多主题切换
+- 代码块语法高亮与一键复制
+- 页面字体切换，并能自动使用 `docs/assets/fonts/` 下提供的字体文件
 - 更适合课程展示的页面样式
 
 如果你要用一句话理解现在的项目，可以这样记：
@@ -191,8 +193,9 @@ HTML 渲染模块。
 - 内置 CSS
 - 内置主题切换脚本
 - 内置前端搜索脚本
+- 内置代码块增强脚本（语法高亮、复制按钮、字体切换）
 - 归档页模板与归档页渲染函数（按日期 / 按标签）
-- 把导航、TOC、正文、标签、摘要、搜索入口、主题切换入口注入页面
+- 把导航、TOC、正文、标签、摘要、搜索入口、主题切换入口、字体切换入口注入页面
 
 如果你们要改答辩展示效果、页面布局、视觉风格，这里最关键。
 
@@ -219,7 +222,7 @@ HTML 渲染模块。
 2. 扫描 `docs/`
 3. 生成所有 `Page`
 4. 构建导航
-5. 写入内置 CSS、主题脚本和搜索脚本
+5. 写入内置 CSS、主题脚本、搜索脚本和代码增强脚本
 6. 构建归档数据（按日期 / 按标签）
 7. 渲染归档页面 `archive/index.html` 与 `archive/tags/index.html`
 8. 生成 `search.json`
@@ -273,6 +276,7 @@ HTML 渲染模块。
 - `site/assets/minizensical.css`
 - `site/assets/minizensical-theme.js`
 - `site/assets/minizensical-search.js`
+- `site/assets/minizensical-code.js`
 - `site/assets/交大校徽-蓝色.png`
 
 一句话总结：
@@ -302,6 +306,10 @@ HTML 渲染模块。
 - 生成 `search.json`
 - 前端即时搜索
 - 日 / 夜间 / 跟随系统主题切换
+- 代码块语法高亮
+- 代码块一键复制
+- 页面阅读字体切换
+- 自动识别 `docs/assets/fonts/` 中的 `.woff2` / `.woff` / `.ttf` / `.otf` 字体文件
 - 本地预览服务器
 - 自动重建
 - 浏览器自动刷新
@@ -357,6 +365,41 @@ HTML 渲染模块。
   - `STYLE_SHEET` 新增了 `.search-mode`、`.mode-option`、`.highlight-color`、`.color-swatch` 等样式，以及 `<mark>` 样式（使用 CSS 变量 `--search-highlight` 控制背景色）。
   - `SEARCH_SCRIPT` 重写，集成模式选择逻辑、颜色选择逻辑以及匹配类型标签生成。
 - 所有改动仅涉及 `src/render.rs`，未影响其他模块、测试文件和文档内容。
+
+## 5.3 本次增量：代码块高亮、复制与字体切换实现说明
+
+本次更新在不改变原有构建主链路的前提下，新增了三个前端阅读体验增强：
+
+### 代码块语法高亮
+- Markdown 中使用围栏代码块时，如果写了语言标记，例如 ```` ```rust ````、```` ```bash ````、```` ```toml ````，生成页面会保留 `language-*` 类。
+- 浏览器加载页面后，`minizensical-code.js` 会扫描 `.page-body pre > code`，根据语言类型给关键字、字符串、注释、数字、函数名、运算符等 token 添加高亮样式。
+- 当前实现是轻量前端高亮，不引入新的 Rust 解析依赖，保持构建链路简单；未识别的语言会以普通代码块展示。
+
+### 代码块一键复制
+- 每个代码块会被增强成带工具栏的 `.code-block`。
+- 工具栏左侧显示语言名，右侧显示 `Copy` 按钮。
+- 点击 `Copy` 会复制原始代码文本，而不是复制高亮后的 HTML；复制成功后按钮短暂显示 `Copied`。
+- 在不支持 `navigator.clipboard` 的环境中，会回退到临时 `textarea` 的复制方式。
+
+### 字体切换
+- 侧边栏新增 `Font` 面板，内置 `Sans`、`Serif`、`Mono` 三种字体栈。
+- 用户选择会写入 CSS 变量 `--content-font`，并保存到浏览器本地存储 `minizensical-font-choice`，刷新后仍然保留。
+- 如果把字体文件放到 `docs/assets/fonts/` 下，支持 `.woff2`、`.woff`、`.ttf`、`.otf`，构建时会自动识别并加入字体切换按钮。
+- 这些字体会像其他静态资源一样复制到 `site/assets/fonts/`，同时在 `site/assets/minizensical.css` 顶部生成对应的 `@font-face`。
+
+### 与功能直接相关的代码更新
+- `src/render.rs`：
+  - 新增 `FontOption`、`default_font_options(...)`、`stylesheet_contents(font_options)`，用于生成字体按钮和动态 `@font-face`。
+  - `MAIN_TEMPLATE` 与 `ARCHIVE_TEMPLATE` 新增 `Font` 面板，并加载 `minizensical-code.js`。
+  - `STYLE_SHEET` 新增 `.font-panel`、`.font-option`、`.code-block`、`.code-toolbar`、`.copy-code-button`、`.token-*` 等样式。
+  - 新增 `CODE_SCRIPT`，统一处理字体切换、代码块高亮和复制按钮。
+- `src/build.rs`：
+  - 新增 `build_font_options(...)` 和 `is_provided_font_asset(...)`，从 `docs/assets/fonts/` 自动收集提供的字体文件。
+  - `write_theme_assets(...)` 改为接收字体选项，写出动态 CSS，并新增 `site/assets/minizensical-code.js`。
+  - 渲染普通页面和归档页时都传入同一组字体选项，保证全站行为一致。
+- `tests/build.rs`：
+  - 在集成测试中加入示例代码块和占位字体文件。
+  - 校验生成页面包含 `minizensical-code.js`、字体切换入口、自动识别的字体按钮，以及 CSS 中的 `@font-face`。
 
 ## 6. 现在还没有做什么
 
@@ -622,6 +665,51 @@ order: 2
 
 主题选择会保存在浏览器本地存储里，所以刷新页面后仍然会保留上一次的手动选择。
 
+## 11.1 字体切换和代码块工具怎么用
+
+### 字体切换
+
+页面侧边栏的 `Font` 面板提供：
+
+- `Sans`：默认无衬线字体栈，适合正文阅读
+- `Serif`：衬线字体栈，适合偏文档或论文风格的内容
+- `Mono`：等宽字体栈，适合代码较多的页面
+- 自动识别的提供字体：放在 `docs/assets/fonts/` 下的字体文件会在构建后自动出现在这里
+
+例如你放入：
+
+```text
+docs/assets/fonts/my-display-font.woff2
+```
+
+构建后会得到：
+
+```text
+site/assets/fonts/my-display-font.woff2
+```
+
+同时页面会出现一个 `My Display Font` 按钮。点击后，正文会切换到该字体，并保存在浏览器本地存储中。
+
+### 代码块高亮与复制
+
+Markdown 中继续使用标准围栏代码块即可：
+
+````md
+```rust
+fn main() {
+    println!("Hello, world!");
+}
+```
+````
+
+构建后的页面会在浏览器中自动增强为：
+
+- 带语言标签的代码块工具栏
+- 按语言做轻量语法高亮
+- `Copy` 按钮，一键复制原始代码文本
+
+如果代码块没有写语言，仍然会显示复制按钮，但不会强行套用某一种语法规则。
+
 ## 12. 图片和其他资源怎么加
 
 把资源放进 `docs/` 任意位置即可。
@@ -765,7 +853,7 @@ cargo run -- serve
 - `src/markdown.rs`
 - `src/page.rs`
 
-### 想继续增强主题系统
+### 想继续增强主题或字体系统
 
 优先看：
 
@@ -853,6 +941,8 @@ cargo run -- serve
 - 修改 front matter 规则
 - 修改搜索行为
 - 修改主题切换行为
+- 修改字体切换行为
+- 修改代码块高亮或复制行为
 - 修改目录结构
 - 修改页面输出规则
 - 改变推荐使用方式

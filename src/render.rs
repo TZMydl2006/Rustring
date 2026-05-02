@@ -16,7 +16,9 @@ pub fn render_page(
     stylesheet_href: &str,
     theme_script_href: &str,
     search_script_href: &str,
+    code_script_href: &str,
     search_index_href: &str,
+    font_options: &[FontOption],
 ) -> Result<String> {
     let mut environment = Environment::new();
     environment.add_template("main.html", MAIN_TEMPLATE)?;
@@ -44,7 +46,9 @@ pub fn render_page(
         theme_boot_script => theme_boot_script(),
         theme_script_href => theme_script_href.to_string(),
         search_script_href => search_script_href.to_string(),
+        code_script_href => code_script_href.to_string(),
         search_index_href => search_index_href.to_string(),
+        font_options => font_options.iter().collect::<Vec<_>>(),
     })?;
 
     Ok(rendered)
@@ -62,10 +66,47 @@ pub struct ArchiveSection {
     pub groups: Vec<ArchiveGroup>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct FontOption {
+    pub label: String,
+    pub css_value: String,
+    pub source_url: Option<String>,
+    pub font_family: Option<String>,
+}
+
+impl FontOption {
+    pub fn builtin(label: &str, css_value: &str) -> Self {
+        Self {
+            label: label.to_string(),
+            css_value: css_value.to_string(),
+            source_url: None,
+            font_family: None,
+        }
+    }
+
+    pub fn provided(label: String, family: String, source_url: String) -> Self {
+        Self {
+            label,
+            css_value: format!("\"{family}\", {DEFAULT_SANS_FONT_STACK}"),
+            source_url: Some(source_url),
+            font_family: Some(family),
+        }
+    }
+}
+
+pub fn default_font_options() -> Vec<FontOption> {
+    vec![
+        FontOption::builtin("Sans", DEFAULT_SANS_FONT_STACK),
+        FontOption::builtin("Serif", "Georgia, \"Times New Roman\", serif"),
+        FontOption::builtin("Mono", DEFAULT_MONO_FONT_STACK),
+    ]
+}
+
 pub fn render_archive_index(
     config: &Config,
     sections: &[ArchiveSection],
     navigation: &[RenderNavItem],
+    font_options: &[FontOption],
 ) -> Result<String> {
     let home_href = "..";
     let stylesheet_href = "../assets/minizensical.css";
@@ -84,6 +125,7 @@ pub fn render_archive_index(
         theme_script_href,
         search_script_href,
         search_index_href,
+        font_options,
     )
 }
 
@@ -91,6 +133,7 @@ pub fn render_tag_archive(
     config: &Config,
     sections: &[ArchiveSection],
     navigation: &[RenderNavItem],
+    font_options: &[FontOption],
 ) -> Result<String> {
     let home_href = "../..";
     let stylesheet_href = "../../assets/minizensical.css";
@@ -109,6 +152,7 @@ pub fn render_tag_archive(
         theme_script_href,
         search_script_href,
         search_index_href,
+        font_options,
     )
 }
 
@@ -123,6 +167,7 @@ fn render_simple_page(
     theme_script_href: &str,
     search_script_href: &str,
     search_index_href: &str,
+    font_options: &[FontOption],
 ) -> Result<String> {
     let mut environment = Environment::new();
     environment.add_template("archive.html", ARCHIVE_TEMPLATE)?;
@@ -141,6 +186,8 @@ fn render_simple_page(
         theme_script_href => theme_script_href.to_string(),
         search_script_href => search_script_href.to_string(),
         search_index_href => search_index_href.to_string(),
+        code_script_href => code_script_href_for(search_script_href),
+        font_options => font_options.iter().collect::<Vec<_>>(),
     })?;
     Ok(rendered)
 }
@@ -149,8 +196,31 @@ pub fn stylesheet_path() -> PathBuf {
     PathBuf::from("assets/minizensical.css")
 }
 
-pub fn stylesheet_contents() -> &'static str {
-    STYLE_SHEET
+pub fn stylesheet_contents(font_options: &[FontOption]) -> String {
+    let mut contents = String::new();
+    for option in font_options {
+        let Some(source_url) = &option.source_url else {
+            continue;
+        };
+        contents.push_str("@font-face {\n");
+        contents.push_str("  font-family: \"");
+        contents.push_str(&css_string(
+            option
+                .font_family
+                .as_deref()
+                .unwrap_or(option.label.as_str()),
+        ));
+        contents.push_str("\";\n");
+        contents.push_str("  src: url(\"");
+        contents.push_str(&css_string(source_url));
+        contents.push_str("\") format(\"");
+        contents.push_str(font_format(source_url));
+        contents.push_str("\");\n");
+        contents.push_str("  font-display: swap;\n");
+        contents.push_str("}\n\n");
+    }
+    contents.push_str(STYLE_SHEET);
+    contents
 }
 
 pub fn search_script_path() -> PathBuf {
@@ -161,12 +231,51 @@ pub fn search_script_contents() -> &'static str {
     SEARCH_SCRIPT
 }
 
+pub fn code_script_path() -> PathBuf {
+    PathBuf::from("assets/minizensical-code.js")
+}
+
+pub fn code_script_contents() -> &'static str {
+    CODE_SCRIPT
+}
+
 pub fn theme_script_path() -> PathBuf {
     PathBuf::from("assets/minizensical-theme.js")
 }
 
 pub fn theme_script_contents() -> &'static str {
     THEME_SCRIPT
+}
+
+const DEFAULT_SANS_FONT_STACK: &str =
+    "\"Avenir Next\", \"IBM Plex Sans\", \"Segoe UI\", sans-serif";
+const DEFAULT_MONO_FONT_STACK: &str =
+    "\"IBM Plex Mono\", \"Cascadia Code\", \"SFMono-Regular\", monospace";
+
+fn code_script_href_for(search_script_href: &str) -> String {
+    search_script_href.replace("minizensical-search.js", "minizensical-code.js")
+}
+
+fn css_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\A ")
+}
+
+fn font_format(source_url: &str) -> &'static str {
+    let lower = source_url.to_lowercase();
+    if lower.ends_with(".woff2") {
+        "woff2"
+    } else if lower.ends_with(".woff") {
+        "woff"
+    } else if lower.ends_with(".ttf") {
+        "truetype"
+    } else if lower.ends_with(".otf") {
+        "opentype"
+    } else {
+        "woff2"
+    }
 }
 
 const MAIN_TEMPLATE: &str = r##"
@@ -228,6 +337,16 @@ const MAIN_TEMPLATE: &str = r##"
           <button type="button" class="theme-option" data-theme-choice="system">System</button>
         </div>
         <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
+      </section>
+
+      <section class="font-panel">
+        <p class="font-label">Font</p>
+        <div class="font-toggle" data-font-switcher>
+          {% for font in font_options %}
+          <button type="button" class="font-option" data-font-value="{{ font.css_value }}">{{ font.label }}</button>
+          {% endfor %}
+        </div>
+        <p class="font-hint">Fonts placed in <code>docs/assets/fonts/</code> are added to this switcher after build.</p>
       </section>
 
       <div class="nav-shell">
@@ -327,6 +446,7 @@ const MAIN_TEMPLATE: &str = r##"
 
   <script src="{{ theme_script_href }}"></script>
   <script src="{{ search_script_href }}"></script>
+  <script src="{{ code_script_href }}"></script>
 </body>
 </html>
 "##;
@@ -356,7 +476,10 @@ const STYLE_SHEET: &str = r#"
   --ambient-b: rgba(13, 109, 104, 0.12);
   --code-bg: #102123;
   --code-ink: #eef5f3;
-  font-family: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+  --content-font-default: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+  --content-font: var(--content-font-default);
+  --code-font: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", monospace;
+  font-family: var(--content-font);
 }
 
 :root[data-theme="dark"] {
@@ -410,7 +533,7 @@ a {
 
 code,
 pre {
-  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-family: var(--code-font);
 }
 
 .ambient {
@@ -510,7 +633,8 @@ pre {
   padding: 18px;
 }
 
-.theme-panel {
+.theme-panel,
+.font-panel {
   padding: 18px;
 }
 
@@ -524,7 +648,8 @@ pre {
   color: var(--accent-strong);
 }
 
-.theme-label {
+.theme-label,
+.font-label {
   margin: 0 0 10px;
   font-size: 0.86rem;
   font-weight: 700;
@@ -607,13 +732,15 @@ pre {
   color: var(--accent-strong);
 }
 
-.theme-toggle {
+.theme-toggle,
+.font-toggle {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.theme-option {
+.theme-option,
+.font-option {
   border: 1px solid rgba(13, 109, 104, 0.16);
   background: var(--panel-solid);
   color: var(--ink);
@@ -625,18 +752,21 @@ pre {
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
 
-.theme-option:hover {
+.theme-option:hover,
+.font-option:hover {
   transform: translateY(-1px);
   border-color: rgba(13, 109, 104, 0.35);
 }
 
-.theme-option.is-active {
+.theme-option.is-active,
+.font-option.is-active {
   background: var(--accent);
   color: var(--hero-text);
   border-color: transparent;
 }
 
-.theme-hint {
+.theme-hint,
+.font-hint {
   margin: 10px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
@@ -857,6 +987,96 @@ pre {
   border-radius: 20px;
   background: var(--code-bg);
   color: var(--code-ink);
+}
+
+.page-body .code-block {
+  margin: 1.1em 0;
+  overflow: hidden;
+  border: 1px solid rgba(205, 232, 232, 0.12);
+  border-radius: 18px;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  box-shadow: 0 16px 34px rgba(7, 20, 22, 0.16);
+}
+
+.page-body .code-block pre {
+  margin: 0;
+  padding: 18px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(205, 232, 232, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.code-language {
+  color: rgba(238, 245, 243, 0.72);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.copy-code-button {
+  border: 1px solid rgba(238, 245, 243, 0.18);
+  border-radius: 999px;
+  padding: 6px 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--code-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.copy-code-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(238, 245, 243, 0.34);
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.copy-code-button.is-copied {
+  border-color: rgba(121, 214, 208, 0.5);
+  background: rgba(121, 214, 208, 0.16);
+}
+
+.token-comment {
+  color: #8ea6a5;
+  font-style: italic;
+}
+
+.token-keyword {
+  color: #86d7ff;
+}
+
+.token-string {
+  color: #b8e986;
+}
+
+.token-number {
+  color: #ffd479;
+}
+
+.token-function {
+  color: #f5c2ff;
+}
+
+.token-operator {
+  color: #ffb38a;
+}
+
+.token-tag {
+  color: #8fdcff;
+}
+
+.token-attr {
+  color: #ffd479;
 }
 
 .page-body :not(pre) > code {
@@ -1475,6 +1695,245 @@ const SEARCH_SCRIPT: &str = r##"
 })();
 "##;
 
+const CODE_SCRIPT: &str = r##"
+(() => {
+  const root = document.documentElement;
+  const fontButtons = Array.from(document.querySelectorAll("[data-font-value]"));
+  const fontStorageKey = "minizensical-font-choice";
+
+  const applyFont = (value, persist = true) => {
+    if (!value) {
+      return;
+    }
+    root.style.setProperty("--content-font", value);
+    fontButtons.forEach((button) => {
+      const active = button.dataset.fontValue === value;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (persist) {
+      try {
+        window.localStorage.setItem(fontStorageKey, value);
+      } catch (_error) {
+        // Ignore persistence errors in restricted browsers.
+      }
+    }
+  };
+
+  if (fontButtons.length > 0) {
+    const availableFonts = new Set(fontButtons.map((button) => button.dataset.fontValue));
+    let initialFont = fontButtons[0].dataset.fontValue;
+    try {
+      const storedFont = window.localStorage.getItem(fontStorageKey);
+      initialFont = availableFonts.has(storedFont) ? storedFont : initialFont;
+    } catch (_error) {
+      // Keep the first configured option.
+    }
+    applyFont(initialFont, false);
+    fontButtons.forEach((button) => {
+      button.addEventListener("click", () => applyFont(button.dataset.fontValue));
+    });
+  }
+
+  const escapeHtml = (value) =>
+    value.replace(/[&<>\"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;"
+    })[character]);
+
+  const aliases = new Map([
+    ["rs", "rust"],
+    ["js", "javascript"],
+    ["ts", "typescript"],
+    ["sh", "bash"],
+    ["shell", "bash"],
+    ["yml", "yaml"],
+    ["md", "markdown"],
+    ["html", "markup"],
+    ["xml", "markup"]
+  ]);
+
+  const keywordSets = {
+    rust: "as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while".split(" "),
+    javascript: "async await break case catch class const continue default delete do else export extends false finally for from function if import in instanceof let new null return static super switch this throw true try typeof undefined var void while yield".split(" "),
+    typescript: "abstract any as async await boolean break case catch class const constructor continue declare default delete do else enum export extends false finally for from function if implements import in infer instanceof interface keyof let module namespace never new null number object private protected public readonly return static string super switch this throw true try type typeof undefined unknown var void while yield".split(" "),
+    css: "align-items background border color display flex font grid height justify-content margin padding position width".split(" "),
+    toml: "true false".split(" "),
+    yaml: "true false null".split(" "),
+    bash: "case do done elif else esac export fi for function if in local read return set then while".split(" ")
+  };
+
+  const detectLanguage = (code) => {
+    const classes = Array.from(code.classList);
+    for (const className of classes) {
+      const match = className.match(/(?:language-|lang-)?([a-z0-9_+-]+)/i);
+      if (match) {
+        const language = match[1].toLowerCase();
+        return aliases.get(language) || language;
+      }
+    }
+    return "text";
+  };
+
+  const matchSticky = (pattern, source, offset) => {
+    pattern.lastIndex = offset;
+    const match = pattern.exec(source);
+    return match && match.index === offset ? match[0] : null;
+  };
+
+  const scannerPatterns = (language) => {
+    const keywords = keywordSets[language] || keywordSets.javascript;
+    const keywordPattern = new RegExp("\\b(?:" + keywords.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "y");
+    const commentPattern = language === "bash" || language === "yaml" || language === "toml"
+      ? /#[^\n]*/y
+      : /\/\/[^\n]*|\/\*[\s\S]*?\*\//y;
+    return [
+      ["comment", commentPattern],
+      ["string", /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/y],
+      ["number", /\b\d+(?:\.\d+)?(?:[a-zA-Z_]\w*)?\b/y],
+      ["keyword", keywordPattern],
+      ["function", /\b[A-Za-z_][\w-]*(?=\s*\()/y],
+      ["operator", /=>|->|==|!=|<=|>=|&&|\|\||[+\-*\/%=!<>:]/y]
+    ];
+  };
+
+  const highlightGeneric = (source, language) => {
+    const patterns = scannerPatterns(language);
+    let html = "";
+    let index = 0;
+    while (index < source.length) {
+      let matched = false;
+      for (const [type, pattern] of patterns) {
+        const token = matchSticky(pattern, source, index);
+        if (token) {
+          html += '<span class="token-' + type + '">' + escapeHtml(token) + '</span>';
+          index += token.length;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        html += escapeHtml(source[index]);
+        index += 1;
+      }
+    }
+    return html;
+  };
+
+  const highlightMarkup = (source) => {
+    let html = "";
+    let index = 0;
+    const comment = /<!--[\s\S]*?-->/y;
+    const tag = /<\/?[A-Za-z][^>\n]*?>/y;
+    while (index < source.length) {
+      const commentToken = matchSticky(comment, source, index);
+      if (commentToken) {
+        html += '<span class="token-comment">' + escapeHtml(commentToken) + '</span>';
+        index += commentToken.length;
+        continue;
+      }
+      const tagToken = matchSticky(tag, source, index);
+      if (tagToken) {
+        const tagHtml = escapeHtml(tagToken)
+          .replace(/^(&lt;\/?)([A-Za-z][\w:-]*)/, '$1<span class="token-tag">$2</span>')
+          .replace(/([\w:-]+)(=)/g, '<span class="token-attr">$1</span>$2');
+        html += tagHtml;
+        index += tagToken.length;
+        continue;
+      }
+      html += escapeHtml(source[index]);
+      index += 1;
+    }
+    return html;
+  };
+
+  const highlightMarkdown = (source) =>
+    escapeHtml(source)
+      .replace(/^(\s{0,3}#{1,6}\s.+)$/gm, '<span class="token-keyword">$1</span>')
+      .replace(/^(\s*[-*+]\s)/gm, '<span class="token-operator">$1</span>')
+      .replace(/(`[^`\n]+`)/g, '<span class="token-string">$1</span>');
+
+  const highlightCode = (source, language) => {
+    if (language === "text" || language === "plain") {
+      return escapeHtml(source);
+    }
+    if (language === "markup") {
+      return highlightMarkup(source);
+    }
+    if (language === "markdown") {
+      return highlightMarkdown(source);
+    }
+    return highlightGeneric(source, language);
+  };
+
+  const copyText = async (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  };
+
+  document.querySelectorAll(".page-body pre > code").forEach((code, index) => {
+    const pre = code.parentElement;
+    if (!pre || pre.dataset.codeEnhanced === "true") {
+      return;
+    }
+    pre.dataset.codeEnhanced = "true";
+    const rawCode = code.textContent || "";
+    const language = detectLanguage(code);
+    code.innerHTML = highlightCode(rawCode, language);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "code-block";
+    const toolbar = document.createElement("div");
+    toolbar.className = "code-toolbar";
+
+    const label = document.createElement("span");
+    label.className = "code-language";
+    label.textContent = language === "text" ? "code" : language;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "copy-code-button";
+    button.textContent = "Copy";
+    button.setAttribute("aria-label", "Copy code block " + (index + 1));
+
+    button.addEventListener("click", async () => {
+      try {
+        await copyText(rawCode);
+        button.textContent = "Copied";
+        button.classList.add("is-copied");
+        window.setTimeout(() => {
+          button.textContent = "Copy";
+          button.classList.remove("is-copied");
+        }, 1400);
+      } catch (_error) {
+        button.textContent = "Failed";
+        window.setTimeout(() => {
+          button.textContent = "Copy";
+        }, 1400);
+      }
+    });
+
+    toolbar.append(label, button);
+    pre.before(wrapper);
+    wrapper.append(toolbar, pre);
+  });
+})();
+"##;
+
 const ARCHIVE_TEMPLATE: &str = r##"
 <!doctype html>
 <html lang="en">
@@ -1531,6 +1990,16 @@ const ARCHIVE_TEMPLATE: &str = r##"
         <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
       </section>
 
+      <section class="font-panel">
+        <p class="font-label">Font</p>
+        <div class="font-toggle" data-font-switcher>
+          {% for font in font_options %}
+          <button type="button" class="font-option" data-font-value="{{ font.css_value }}">{{ font.label }}</button>
+          {% endfor %}
+        </div>
+        <p class="font-hint">Fonts placed in <code>docs/assets/fonts/</code> are added to this switcher after build.</p>
+      </section>
+
       <div class="nav-shell">
         {{ nav_html | safe }}
       </div>
@@ -1569,6 +2038,7 @@ const ARCHIVE_TEMPLATE: &str = r##"
 
   <script src="{{ theme_script_href }}"></script>
   <script src="{{ search_script_href }}"></script>
+  <script src="{{ code_script_href }}"></script>
 </body>
 </html>
 "##;

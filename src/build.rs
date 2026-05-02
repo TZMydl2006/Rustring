@@ -1,13 +1,14 @@
 use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
-use crate::nav::{Navigation, NavItem, PageLink, RenderNavItem, relative_href};
+use crate::nav::{NavItem, Navigation, PageLink, RenderNavItem, relative_href};
 use crate::page::Page;
 use crate::render::{
-    render_page, render_archive_index, render_tag_archive, ArchiveSection, ArchiveGroup,
+    ArchiveGroup, ArchiveSection, FontOption, code_script_contents, code_script_path,
+    default_font_options, render_archive_index, render_page, render_tag_archive,
     search_script_contents, search_script_path, stylesheet_contents, stylesheet_path,
     theme_script_contents, theme_script_path,
 };
-use crate::scanner::scan_site;
+use crate::scanner::{SourceFile, scan_site, titleize};
 use crate::search::{build_search_index, search_index_path};
 use std::collections::BTreeMap;
 use std::fs;
@@ -69,6 +70,7 @@ fn build_site_contents(config: &Config) -> Result<()> {
         .map_err(|error| MiniZensicalError::io("create", &site_dir, error))?;
 
     let sources = scan_site(config)?;
+    let font_options = build_font_options(&sources.asset_files);
     let mut pages = sources
         .markdown_files
         .iter()
@@ -93,7 +95,7 @@ fn build_site_contents(config: &Config) -> Result<()> {
             ),
         ],
     });
-    write_theme_assets(config)?;
+    write_theme_assets(config, &font_options)?;
 
     let archive_page_path = Path::new("archive/index.html");
     let tag_page_path = Path::new("archive/tags/index.html");
@@ -143,22 +145,15 @@ fn build_site_contents(config: &Config) -> Result<()> {
     }];
 
     // Render archive pages
-    let archive_html = render_archive_index(
-        config,
-        &archive_sections,
-        &archive_nav,
-    )?;
+    let archive_html =
+        render_archive_index(config, &archive_sections, &archive_nav, &font_options)?;
     write_archive_page(config, archive_page_path, &archive_html)?;
 
-    let tag_html = render_tag_archive(
-        config,
-        &tag_sections,
-        &tag_nav,
-    )?;
+    let tag_html = render_tag_archive(config, &tag_sections, &tag_nav, &font_options)?;
     write_archive_page(config, tag_page_path, &tag_html)?;
 
     write_search_index(config, &pages)?;
-    render_pages(config, &pages, &navigation)?;
+    render_pages(config, &pages, &navigation, &font_options)?;
     copy_assets(config, &sources.asset_files)?;
     Ok(())
 }
@@ -203,7 +198,8 @@ fn build_date_archive(pages: &[Page], archive_page_path: &Path) -> Vec<ArchiveSe
             })
             .unwrap_or_else(|| month.unwrap_or_default());
 
-        dated.get_mut(&year)
+        dated
+            .get_mut(&year)
             .unwrap()
             .entry(month_label)
             .or_default()
@@ -237,7 +233,10 @@ fn build_tag_archive(pages: &[Page], archive_page_path: &Path) -> Vec<ArchiveSec
         };
 
         if page.metadata.tags.is_empty() {
-            by_tag.entry("(untagged)".to_string()).or_default().push(link.clone());
+            by_tag
+                .entry("(untagged)".to_string())
+                .or_default()
+                .push(link.clone());
         } else {
             for tag in &page.metadata.tags {
                 by_tag.entry(tag.clone()).or_default().push(link.clone());
@@ -266,6 +265,49 @@ fn write_archive_page(config: &Config, relative_path: &Path, html: &str) -> Resu
     fs::write(&path, html).map_err(|error| MiniZensicalError::io("write", &path, error))
 }
 
+fn build_font_options(assets: &[SourceFile]) -> Vec<FontOption> {
+    let mut options = default_font_options();
+    for asset in assets {
+        if !is_provided_font_asset(&asset.relative_path) {
+            continue;
+        }
+
+        let label = asset
+            .relative_path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .map(titleize)
+            .filter(|label| !label.is_empty())
+            .unwrap_or_else(|| String::from("Provided Font"));
+        let family = format!("MiniZensical {label}");
+        let source_url = relative_href(&stylesheet_path(), &asset.relative_path);
+        options.push(FontOption::provided(label, family, source_url));
+    }
+    options
+}
+
+fn is_provided_font_asset(path: &Path) -> bool {
+    let components = path
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+    if components.len() < 3
+        || !components[0].eq_ignore_ascii_case("assets")
+        || !components[1].eq_ignore_ascii_case("fonts")
+    {
+        return false;
+    }
+
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            ["woff2", "woff", "ttf", "otf"]
+                .iter()
+                .any(|allowed| extension.eq_ignore_ascii_case(allowed))
+        })
+}
+
 fn cleanup_dir(path: &Path) {
     if path.exists() {
         let _ = fs::remove_dir_all(path);
@@ -280,8 +322,12 @@ fn unique_dir_name(prefix: &str) -> String {
     format!("{prefix}-{}-{timestamp}", process::id())
 }
 
-fn write_theme_assets(config: &Config) -> Result<()> {
-    write_asset(config, stylesheet_path(), stylesheet_contents().as_bytes())?;
+fn write_theme_assets(config: &Config, font_options: &[FontOption]) -> Result<()> {
+    write_asset(
+        config,
+        stylesheet_path(),
+        stylesheet_contents(font_options).as_bytes(),
+    )?;
     write_asset(
         config,
         theme_script_path(),
@@ -291,6 +337,11 @@ fn write_theme_assets(config: &Config) -> Result<()> {
         config,
         search_script_path(),
         search_script_contents().as_bytes(),
+    )?;
+    write_asset(
+        config,
+        code_script_path(),
+        code_script_contents().as_bytes(),
     )?;
     Ok(())
 }
@@ -315,7 +366,12 @@ fn write_search_index(config: &Config, pages: &[Page]) -> Result<()> {
     fs::write(&path, contents).map_err(|error| MiniZensicalError::io("write", &path, error))
 }
 
-fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Result<()> {
+fn render_pages(
+    config: &Config,
+    pages: &[Page],
+    navigation: &Navigation,
+    font_options: &[FontOption],
+) -> Result<()> {
     for page in pages {
         let (nav_items, previous_page, next_page) = navigation.render_for_page(page);
         let home_href = relative_href(&page.output_path, Path::new("index.html"));
@@ -327,6 +383,8 @@ fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Res
             &page.output_path,
             Path::new("assets/minizensical-search.js"),
         );
+        let code_script_href =
+            relative_href(&page.output_path, Path::new("assets/minizensical-code.js"));
         let search_index_href = relative_href(&page.output_path, Path::new("search.json"));
         let html = render_page(
             config,
@@ -338,7 +396,9 @@ fn render_pages(config: &Config, pages: &[Page], navigation: &Navigation) -> Res
             &stylesheet_href,
             &theme_script_href,
             &search_script_href,
+            &code_script_href,
             &search_index_href,
+            font_options,
         )?;
         let output_path = page.target_path(config);
         if let Some(parent) = output_path.parent() {
