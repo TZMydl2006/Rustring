@@ -36,10 +36,10 @@ order: 1
 ## Rules
 
 - `title` overrides the first `# H1`
-- `summary` is shown near the top of the page and reused for search results
-- `tags` appear as chips on the page and also join the search index
+- `summary` is shown near the top of the page and reused as the page description
+- `tags` appear as chips on the page and feed the tag archive
 - `order` changes how sibling pages are arranged in automatic navigation
 
 ## When to use it
 
-Use front matter when you want cleaner search, clearer navigation, and a more polished document presentation without changing Rust code.
+Use front matter when you want clearer navigation, better archive pages, and a more polished document presentation without changing Rust code.

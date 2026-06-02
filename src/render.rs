@@ -309,21 +309,7 @@ const MAIN_TEMPLATE: &str = r##"
 
       <section class="search-panel">
   <label class="search-label" for="doc-search">Search docs</label>
-  <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, tags, and content">
-  <div class="search-mode">
-    <label class="mode-option"><input type="radio" name="search-mode" value="all" checked> All</label>
-    <label class="mode-option"><input type="radio" name="search-mode" value="title"> Title</label>
-    <label class="mode-option"><input type="radio" name="search-mode" value="tag"> Tags</label>
-  </div>
-  <div class="highlight-color">
-    <span class="color-label">Highlight:</span>
-    <button type="button" class="color-swatch" data-color="#ffeb3b" style="background:#ffeb3b" aria-label="Yellow"></button>
-    <button type="button" class="color-swatch" data-color="#a8e6cf" style="background:#a8e6cf" aria-label="Green"></button>
-    <button type="button" class="color-swatch" data-color="#90caf9" style="background:#90caf9" aria-label="Blue"></button>
-    <button type="button" class="color-swatch" data-color="#f8bbd0" style="background:#f8bbd0" aria-label="Pink"></button>
-    <button type="button" class="color-swatch" data-color="#ffcc80" style="background:#ffcc80" aria-label="Orange"></button>
-    <button type="button" class="color-swatch" data-color="inherit" style="background:var(--accent-soft);border-color:var(--accent)" aria-label="Theme default">Default</button>
-  </div>
+  <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, and content">
   <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
   <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
   <div id="search-results" class="search-results" hidden></div>
@@ -370,7 +356,7 @@ const MAIN_TEMPLATE: &str = r##"
           <article class="hero-card" id="search-showcase">
             <span class="hero-card-tag">Search</span>
             <h2>Search the whole site in one box</h2>
-            <p>Titles, summaries, tags, headings, and body text all enter the same index.</p>
+            <p>Titles, headings, and body text are indexed as jumpable sections.</p>
           </article>
           <article class="hero-card">
             <span class="hero-card-tag">Writing</span>
@@ -396,7 +382,7 @@ const MAIN_TEMPLATE: &str = r##"
             {% endfor %}
           </div>
           {% endif %}
-          <h1>{{ page.title }}</h1>
+          <h1 id="page-title">{{ page.title }}</h1>
           {% if page.summary %}
           <p class="page-summary">{{ page.summary }}</p>
           {% endif %}
@@ -445,8 +431,8 @@ const MAIN_TEMPLATE: &str = r##"
   </div>
 
   <script src="{{ theme_script_href }}"></script>
-  <script src="{{ search_script_href }}"></script>
   <script src="{{ code_script_href }}"></script>
+  <script src="{{ search_script_href }}"></script>
 </body>
 </html>
 "##;
@@ -691,45 +677,67 @@ pre {
   background: var(--panel-strong);
 }
 
-.search-result {
+.search-result-group {
   display: grid;
   gap: 8px;
   padding: 14px;
-  text-decoration: none;
   border-radius: 18px;
   border: 1px solid rgba(13, 109, 104, 0.08);
   background: var(--search-surface);
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.search-result:hover {
+.search-result-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.search-match-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.search-match {
+  display: block;
+  padding: 10px 12px;
+  text-decoration: none;
+  border-radius: 14px;
+  border: 1px solid rgba(13, 109, 104, 0.08);
+  background: var(--panel-solid);
+  color: var(--muted);
+  line-height: 1.55;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+.search-match:hover {
   transform: translateY(-1px);
   border-color: rgba(13, 109, 104, 0.24);
   box-shadow: 0 12px 25px rgba(12, 37, 39, 0.08);
+  color: var(--ink);
 }
 
-.search-result strong {
-  font-size: 1rem;
-}
-
-.search-result p {
+.search-empty {
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
 }
 
-.search-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.search-target-active {
+  outline: 3px solid rgba(255, 212, 80, 0.72);
+  outline-offset: 5px;
+  border-radius: 12px;
+  background: rgba(255, 238, 153, 0.24);
+  transition: background 180ms ease, outline-color 180ms ease;
 }
 
-.search-meta span {
-  font-size: 0.78rem;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+mark {
+  background: #ffe66d;
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 3px;
 }
 
 .theme-toggle,
@@ -1292,76 +1300,6 @@ pre {
 	  padding-left: 4px;
 	}
 
-  .search-mode {
-  display: flex;
-  gap: 8px;
-  margin: 8px 0;
-  }
-
-  .mode-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.9rem;
-  color: var(--muted);
-  cursor: pointer;
-  }
-
-  .mode-option input[type="radio"] {
-  accent-color: var(--accent);
-  margin: 0;
-}
-
-  .highlight-color {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 0;
-  flex-wrap: wrap;
-}
-
-.color-label {
-  font-size: 0.86rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--accent-strong);
-}
-
-.color-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  transition: transform 160ms ease, border-color 160ms ease;
-}
-
-.color-swatch:hover {
-  transform: scale(1.15);
-}
-
-.color-swatch.is-active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.color-swatch[data-color="inherit"] {
-  font-size: 0.72rem;
-  font-weight: 700;
-  border-radius: 14px;
-  width: auto;
-  padding: 2px 8px;
-  height: auto;
-  color: var(--accent-strong);
-}
-
-  mark {
-  background: var(--search-highlight, #ffeb3b);
-  color: inherit;
-  border-radius: 4px;
-  padding: 0 4px;
-}
 "#;
 
 const THEME_SCRIPT: &str = r#"
@@ -1471,10 +1409,8 @@ const SEARCH_SCRIPT: &str = r##"
   const input = document.getElementById("doc-search");
   const results = document.getElementById("search-results");
   const status = document.getElementById("search-status");
-  const modeRadios = document.querySelectorAll('input[name="search-mode"]');
-  const colorSwatches = document.querySelectorAll('.color-swatch');
 
-  if (!input || !results || !status || !modeRadios.length || !colorSwatches.length) {
+  if (!input || !results || !status) {
     return;
   }
 
@@ -1484,197 +1420,275 @@ const SEARCH_SCRIPT: &str = r##"
   let entries = [];
 
   const escapeHtml = (value) =>
-    value.replace(/[&<>\"']/g, (c) => ({
+    String(value || "").replace(/[&<>\"']/g, (character) => ({
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
       "\"": "&quot;",
       "'": "&#39;"
-    })[c]);
+    })[character]);
 
-  const resolveEntryUrl = (entryUrl) => new URL(entryUrl || "", siteRootUrl).toString();
+  const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const termsForQuery = (query) =>
+    Array.from(new Set(query.trim().toLowerCase().split(/\s+/).filter(Boolean)));
 
   const highlightText = (text, terms) => {
-    let result = text;
+    const source = String(text || "");
+    if (!terms.length) {
+      return escapeHtml(source);
+    }
+    const pattern = new RegExp("(" + terms.map(escapeRegExp).join("|") + ")", "gi");
+    let html = "";
+    let lastIndex = 0;
+
+    source.replace(pattern, (match, _term, offset) => {
+      html += escapeHtml(source.slice(lastIndex, offset));
+      html += "<mark>" + escapeHtml(match) + "</mark>";
+      lastIndex = offset + match.length;
+      return match;
+    });
+
+    html += escapeHtml(source.slice(lastIndex));
+    return html;
+  };
+
+  const firstMatchIndex = (text, terms) => {
+    const lowerText = String(text || "").toLowerCase();
+    let firstIndex = -1;
+
     for (const term of terms) {
-      const escaped = escapeHtml(term);
-      const regex = new RegExp(escaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-      result = result.replace(regex, (match) => '<mark>' + match + '</mark>');
+      const index = lowerText.indexOf(term);
+      if (index >= 0 && (firstIndex < 0 || index < firstIndex)) {
+        firstIndex = index;
+      }
     }
-    return result;
+    return firstIndex;
   };
 
-  const getBestMatchType = (entry, terms, mode) => {
-    const title = (entry.title || "").toLowerCase();
-    const tags = (entry.tags || []).join(" ").toLowerCase();
-    const summary = (entry.summary || "").toLowerCase();
-    const body = (entry.body || "").toLowerCase();
-    const headings = (entry.headings || []).join(" ").toLowerCase();
+  const makeSnippet = (text, terms) => {
+    const source = String(text || "");
+    const maxLength = 180;
+    const matchIndex = firstMatchIndex(source, terms);
 
-    if (mode === "title") {
-      for (const t of terms) { if (title.includes(t)) return "标题匹配"; }
-      return null;
+    if (source.length <= maxLength) {
+      return source;
     }
-    if (mode === "tag") {
-      for (const t of terms) { if (tags.includes(t)) return "标签匹配"; }
-      return null;
+
+    if (matchIndex < 0) {
+      return source.slice(0, maxLength).trimEnd() + "...";
     }
-    for (const t of terms) {
-      if (title.includes(t)) return "标题匹配";
-      if (headings.includes(t)) return "标题匹配";
-      if (tags.includes(t)) return "标签匹配";
-      if (summary.includes(t)) return "摘要匹配";
-      if (body.includes(t)) return "正文匹配";
-    }
-    return null;
+
+    const start = Math.max(0, matchIndex - 70);
+    const end = Math.min(source.length, start + maxLength);
+    return (start > 0 ? "..." : "") + source.slice(start, end).trim() + (end < source.length ? "..." : "");
   };
 
-  const renderResults = (query, matchedEntries, mode) => {
+  const blockMatches = (block, terms) => {
+    const text = String(block.text || "").toLowerCase();
+    return terms.every((term) => text.includes(term));
+  };
+
+  const blockScore = (block, terms) => {
+    const text = String(block.text || "").toLowerCase();
+    const weight = block.kind === "title" ? 8 : block.kind === "heading" ? 5 : 1;
+    let occurrences = 0;
+
+    for (const term of terms) {
+      let index = text.indexOf(term);
+      while (index >= 0) {
+        occurrences += 1;
+        index = text.indexOf(term, index + term.length);
+      }
+    }
+
+    return weight + occurrences;
+  };
+
+  const buildMatchUrl = (entryUrl, blockId, query) => {
+    const url = new URL(entryUrl || "", siteRootUrl);
+    url.searchParams.set("mz-search", query);
+    url.hash = blockId ? encodeURIComponent(blockId) : "";
+    return url.toString();
+  };
+
+  const renderResults = (query, groups) => {
     if (!query) {
       results.hidden = true;
       results.innerHTML = "";
-      status.textContent = "Search titles, tags, headings, and body text from every page.";
+      status.textContent = "Search titles, headings, and body text from every page.";
       return;
     }
 
     results.hidden = false;
 
-    if (matchedEntries.length === 0) {
-      results.innerHTML = "<div class=\"search-result\"><strong>No results</strong><p>Try a shorter keyword, a different mode, or a tag name.</p></div>";
+    if (groups.length === 0) {
+      results.innerHTML = "<div class=\"search-result-group\"><p class=\"search-empty\">No matching sections. Try a shorter keyword.</p></div>";
       status.textContent = "No pages matched " + query + ".";
       return;
     }
 
-    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-
-    const html = matchedEntries.map((entry) => {
-      const bestType = getBestMatchType(entry, terms, mode);
-      const metaTags = [];
-      if (bestType) metaTags.push(bestType);
-      for (const t of entry.tags.slice(0, 3)) if (!metaTags.includes(t)) metaTags.push(t);
-      for (const h of entry.headings.slice(0, 2)) if (!metaTags.includes(h)) metaTags.push(h);
-      const meta = metaTags.slice(0, 4).map((label) =>
-        '<span>' + escapeHtml(label) + '</span>'
-      ).join("");
-
-      const rawSummary = entry.summary || "Open this page to explore the matching section.";
-      const highlightedSummary = highlightText(escapeHtml(rawSummary), terms);
+    const terms = termsForQuery(query);
+    const totalMatches = groups.reduce((total, group) => total + group.matches.length, 0);
+    const html = groups.map(({ entry, matches }) => {
+      const matchHtml = matches.slice(0, 6).map((block) => {
+        const snippet = makeSnippet(block.text, terms);
+        const href = buildMatchUrl(entry.url, block.id, query);
+        return (
+          '<li><a class="search-match" href="' + escapeHtml(href) + '">' +
+            highlightText(snippet, terms) +
+          '</a></li>'
+        );
+      }).join("");
 
       return (
-        '<a class="search-result" href="' + escapeHtml(resolveEntryUrl(entry.url)) + '">' +
-          '<strong>' + escapeHtml(entry.title) + '</strong>' +
-          '<p>' + highlightedSummary + '</p>' +
-          (meta ? '<div class="search-meta">' + meta + '</div>' : "") +
-        '</a>'
+        '<section class="search-result-group">' +
+          '<h3 class="search-result-title">' + escapeHtml(entry.title) + '</h3>' +
+          '<ul class="search-match-list">' + matchHtml + '</ul>' +
+        '</section>'
       );
     }).join("");
 
     results.innerHTML = html;
-    status.textContent = matchedEntries.length + " result(s) for " + query + ".";
-  };
-
-  const scoreEntry = (entry, terms, mode) => {
-    const title = (entry.title || "").toLowerCase();
-    const summary = (entry.summary || "").toLowerCase();
-    const body = (entry.body || "").toLowerCase();
-    const headings = (entry.headings || []).join(" ").toLowerCase();
-    const tags = (entry.tags || []).join(" ").toLowerCase();
-    const combined = title + " " + summary + " " + body + " " + headings + " " + tags;
-
-    if (mode === "title") {
-      for (const t of terms) if (!title.includes(t)) return -1;
-      let score = 0;
-      for (const t of terms) if (title.includes(t)) score += 6;
-      return score;
-    }
-    if (mode === "tag") {
-      for (const t of terms) if (!tags.includes(t)) return -1;
-      let score = 0;
-      for (const t of terms) if (tags.includes(t)) score += 4;
-      return score;
-    }
-    // mode === "all"
-    let score = 0;
-    for (const t of terms) {
-      if (!combined.includes(t)) return -1;
-      if (title.includes(t)) score += 6;
-      if (headings.includes(t)) score += 5;
-      if (tags.includes(t)) score += 4;
-      if (summary.includes(t)) score += 3;
-      if (body.includes(t)) score += 1;
-    }
-    return score;
+    status.textContent = totalMatches + " match(es) in " + groups.length + " page(s) for " + query + ".";
   };
 
   const search = (query) => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) {
-      renderResults("", [], getCurrentMode());
+      renderResults("", []);
       return;
     }
 
-    const terms = normalized.split(/\s+/).filter(Boolean);
-    const mode = getCurrentMode();
-    const matchedEntries = entries
-      .map((e) => ({ entry: e, score: scoreEntry(e, terms, mode) }))
-      .filter(({ score }) => score >= 0)
+    const terms = termsForQuery(normalized);
+    const groups = entries
+      .map((entry) => {
+        const matches = (entry.blocks || [])
+          .filter((block) => block.id && block.text && blockMatches(block, terms))
+          .map((block) => ({ block, score: blockScore(block, terms) }));
+        const score = matches.reduce((total, match) => total + match.score, 0);
+        return { entry, matches, score };
+      })
+      .filter((group) => group.matches.length > 0)
       .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title))
       .slice(0, 8)
-      .map(({ entry }) => entry);
+      .map((group) => ({
+        entry: group.entry,
+        matches: group.matches.sort((a, b) => b.score - a.score).map((match) => match.block)
+      }));
 
-    renderResults(normalized, matchedEntries, mode);
+    renderResults(normalized, groups);
   };
 
-  const getCurrentMode = () => {
-    for (const radio of modeRadios) {
-      if (radio.checked) return radio.value;
+  const decodeHashId = () => {
+    const raw = window.location.hash.replace(/^#/, "");
+    if (!raw) {
+      return "";
     }
-    return "all";
-  };
-
-  // ---- 颜色选择器逻辑 ----
-  const highlightStorageKey = "minizensical-highlight-color";
-  const root = document.documentElement;
-
-  const applyHighlightColor = (color) => {
-    if (color === "inherit") {
-      root.style.removeProperty("--search-highlight");
-    } else {
-      root.style.setProperty("--search-highlight", color);
+    try {
+      return decodeURIComponent(raw);
+    } catch (_error) {
+      return raw;
     }
-    colorSwatches.forEach((swatch) => {
-      const isActive = swatch.dataset.color === color;
-      swatch.classList.toggle("is-active", isActive);
-    });
-    try {
-      window.localStorage.setItem(highlightStorageKey, color);
-    } catch (_) {}
   };
 
-  const loadSavedHighlightColor = () => {
-    try {
-      const saved = window.localStorage.getItem(highlightStorageKey);
-      if (saved) applyHighlightColor(saved);
-    } catch (_) {}
+  const removeTargetMarks = () => {
+    document.querySelectorAll("mark[data-search-target-mark]").forEach((mark) => {
+      const parent = mark.parentNode;
+      if (!parent) {
+        return;
+      }
+      parent.replaceChild(document.createTextNode(mark.textContent || ""), mark);
+      parent.normalize();
+    });
   };
 
-  colorSwatches.forEach((swatch) => {
-    swatch.addEventListener("click", () => {
-      applyHighlightColor(swatch.dataset.color);
+  const clearTargetHighlight = () => {
+    document.querySelectorAll(".search-target-active").forEach((element) => {
+      element.classList.remove("search-target-active");
     });
-  });
+    removeTargetMarks();
 
-  loadSavedHighlightColor();
-  if (!window.localStorage.getItem(highlightStorageKey)) {
-    applyHighlightColor("#ffeb3b");
-  }
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("mz-search")) {
+      url.searchParams.delete("mz-search");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  };
 
-  // ---- 模式切换 ----
-  modeRadios.forEach((radio) => {
-    radio.addEventListener("change", () => search(input.value));
-  });
+  const highlightTargetText = (target, terms) => {
+    if (!terms.length) {
+      return;
+    }
 
-  // ---- 加载搜索索引 ----
+    const pattern = new RegExp("(" + terms.map(escapeRegExp).join("|") + ")", "gi");
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest("mark, script, style, textarea")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        const text = node.nodeValue || "";
+        return terms.some((term) => text.toLowerCase().includes(term))
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      }
+    });
+    const textNodes = [];
+
+    while (walker.nextNode()) {
+      textNodes.push(walker.currentNode);
+    }
+
+    textNodes.forEach((node) => {
+      const source = node.nodeValue || "";
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+
+      source.replace(pattern, (match, _term, offset) => {
+        fragment.appendChild(document.createTextNode(source.slice(lastIndex, offset)));
+        const mark = document.createElement("mark");
+        mark.dataset.searchTargetMark = "true";
+        mark.textContent = match;
+        fragment.appendChild(mark);
+        lastIndex = offset + match.length;
+        return match;
+      });
+
+      fragment.appendChild(document.createTextNode(source.slice(lastIndex)));
+      node.parentNode.replaceChild(fragment, node);
+    });
+  };
+
+  const applyTargetHighlight = () => {
+    const url = new URL(window.location.href);
+    const query = url.searchParams.get("mz-search") || "";
+    const targetId = decodeHashId();
+
+    if (query && !input.value) {
+      input.value = query;
+    }
+    if (!query || !targetId) {
+      return;
+    }
+
+    const target = document.getElementById(targetId);
+    if (!target) {
+      return;
+    }
+
+    const terms = termsForQuery(query);
+    target.classList.add("search-target-active");
+    highlightTargetText(target, terms);
+    window.setTimeout(() => target.scrollIntoView({ block: "center", behavior: "smooth" }), 30);
+
+    const pageBody = document.querySelector(".page-body");
+    if (pageBody) {
+      pageBody.addEventListener("click", clearTargetHighlight, { once: true });
+    }
+  };
+
+  applyTargetHighlight();
   status.textContent = "Loading the search index...";
 
   fetch(indexUrl, { cache: "no-store" })
@@ -1960,21 +1974,7 @@ const ARCHIVE_TEMPLATE: &str = r##"
 
       <section class="search-panel">
   <label class="search-label" for="doc-search">Search docs</label>
-  <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, tags, and content">
-  <div class="search-mode">
-    <label class="mode-option"><input type="radio" name="search-mode" value="all" checked> All</label>
-    <label class="mode-option"><input type="radio" name="search-mode" value="title"> Title</label>
-    <label class="mode-option"><input type="radio" name="search-mode" value="tag"> Tags</label>
-  </div>
-  <div class="highlight-color">
-    <span class="color-label">Highlight:</span>
-    <button type="button" class="color-swatch" data-color="#ffeb3b" style="background:#ffeb3b" aria-label="Yellow"></button>
-    <button type="button" class="color-swatch" data-color="#a8e6cf" style="background:#a8e6cf" aria-label="Green"></button>
-    <button type="button" class="color-swatch" data-color="#90caf9" style="background:#90caf9" aria-label="Blue"></button>
-    <button type="button" class="color-swatch" data-color="#f8bbd0" style="background:#f8bbd0" aria-label="Pink"></button>
-    <button type="button" class="color-swatch" data-color="#ffcc80" style="background:#ffcc80" aria-label="Orange"></button>
-    <button type="button" class="color-swatch" data-color="inherit" style="background:var(--accent-soft);border-color:var(--accent)" aria-label="Theme default">Default</button>
-  </div>
+  <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, and content">
   <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
   <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
   <div id="search-results" class="search-results" hidden></div>
@@ -2037,8 +2037,8 @@ const ARCHIVE_TEMPLATE: &str = r##"
   </div>
 
   <script src="{{ theme_script_href }}"></script>
-  <script src="{{ search_script_href }}"></script>
   <script src="{{ code_script_href }}"></script>
+  <script src="{{ search_script_href }}"></script>
 </body>
 </html>
 "##;

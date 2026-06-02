@@ -1,6 +1,7 @@
 use crate::error::{MiniZensicalError, Result};
 use crate::page::{PageMetadata, TocItem};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -11,6 +12,7 @@ pub struct RenderedMarkdown {
     pub toc: Vec<TocItem>,
     pub plain_text: String,
     pub headings: Vec<Heading>,
+    pub search_blocks: Vec<SearchBlock>,
     pub metadata: PageMetadata,
 }
 
@@ -21,14 +23,34 @@ pub struct Heading {
     pub id: String,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct SearchBlock {
+    pub id: String,
+    pub kind: String,
+    pub text: String,
+}
+
 pub fn render_markdown(markdown: &str, source_path: &Path) -> Result<RenderedMarkdown> {
     let (metadata, body) = split_front_matter(markdown, source_path)?;
     let headings = extract_headings(body);
+    let (body_search_blocks, search_targets) = extract_body_search_blocks(body);
 
     let mut html_output = String::new();
     html::push_html(&mut html_output, Parser::new_ext(body, options()));
-    let html = inject_heading_ids(&html_output, &headings);
+    let html = inject_search_target_ids(
+        &inject_heading_ids(&html_output, &headings),
+        &search_targets,
+    );
     let plain_text = extract_plain_text(body);
+    let mut search_blocks = headings
+        .iter()
+        .map(|heading| SearchBlock {
+            id: heading.id.clone(),
+            kind: String::from("heading"),
+            text: heading.title.clone(),
+        })
+        .collect::<Vec<_>>();
+    search_blocks.extend(body_search_blocks);
 
     let title = headings
         .iter()
@@ -49,6 +71,7 @@ pub fn render_markdown(markdown: &str, source_path: &Path) -> Result<RenderedMar
         toc,
         plain_text,
         headings,
+        search_blocks,
         metadata,
     })
 }
@@ -160,6 +183,171 @@ fn push_fragment(text: &mut String, fragment: &str) {
     text.push_str(fragment);
 }
 
+#[derive(Clone, Debug)]
+struct SearchHtmlTarget {
+    tag: &'static str,
+    id: String,
+}
+
+#[derive(Clone, Debug)]
+struct SearchBlockAccumulator {
+    id: String,
+    text: String,
+}
+
+impl SearchBlockAccumulator {
+    fn new(id: String) -> Self {
+        Self {
+            id,
+            text: String::new(),
+        }
+    }
+
+    fn push_fragment(&mut self, fragment: &str) {
+        push_fragment(&mut self.text, fragment);
+    }
+
+    fn push_space(&mut self) {
+        if !self.text.ends_with(' ') {
+            self.text.push(' ');
+        }
+    }
+
+    fn into_search_block(self) -> Option<SearchBlock> {
+        let text = collapse_whitespace(&self.text);
+        if text.is_empty() {
+            None
+        } else {
+            Some(SearchBlock {
+                id: self.id,
+                kind: String::from("body"),
+                text,
+            })
+        }
+    }
+}
+
+fn extract_body_search_blocks(markdown: &str) -> (Vec<SearchBlock>, Vec<SearchHtmlTarget>) {
+    let mut blocks = Vec::new();
+    let mut targets = Vec::new();
+    let mut counter = 0usize;
+    let mut current_paragraph: Option<SearchBlockAccumulator> = None;
+    let mut current_code_block: Option<SearchBlockAccumulator> = None;
+    let mut item_stack: Vec<SearchBlockAccumulator> = Vec::new();
+
+    for event in Parser::new_ext(markdown, options()) {
+        match event {
+            Event::Start(Tag::Paragraph) if item_stack.is_empty() => {
+                let id = next_search_block_id(&mut counter);
+                targets.push(SearchHtmlTarget {
+                    tag: "p",
+                    id: id.clone(),
+                });
+                current_paragraph = Some(SearchBlockAccumulator::new(id));
+            }
+            Event::End(TagEnd::Paragraph) => {
+                if let Some(paragraph) = current_paragraph.take() {
+                    if let Some(block) = paragraph.into_search_block() {
+                        blocks.push(block);
+                    }
+                }
+            }
+            Event::Start(Tag::Item) => {
+                let id = next_search_block_id(&mut counter);
+                targets.push(SearchHtmlTarget {
+                    tag: "li",
+                    id: id.clone(),
+                });
+                item_stack.push(SearchBlockAccumulator::new(id));
+            }
+            Event::End(TagEnd::Item) => {
+                if let Some(item) = item_stack.pop() {
+                    if let Some(block) = item.into_search_block() {
+                        blocks.push(block);
+                    }
+                }
+            }
+            Event::Start(Tag::CodeBlock(_)) => {
+                let id = next_search_block_id(&mut counter);
+                targets.push(SearchHtmlTarget {
+                    tag: "pre",
+                    id: id.clone(),
+                });
+                current_code_block = Some(SearchBlockAccumulator::new(id));
+            }
+            Event::End(TagEnd::CodeBlock) => {
+                if let Some(code_block) = current_code_block.take() {
+                    if let Some(block) = code_block.into_search_block() {
+                        blocks.push(block);
+                    }
+                }
+            }
+            Event::Text(fragment) | Event::Code(fragment) => {
+                push_search_fragment(
+                    &mut current_paragraph,
+                    &mut current_code_block,
+                    &mut item_stack,
+                    &fragment,
+                );
+            }
+            Event::SoftBreak | Event::HardBreak => {
+                push_search_space(
+                    &mut current_paragraph,
+                    &mut current_code_block,
+                    &mut item_stack,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    (blocks, targets)
+}
+
+fn next_search_block_id(counter: &mut usize) -> String {
+    *counter += 1;
+    format!("mz-search-block-{counter}")
+}
+
+fn push_search_fragment(
+    current_paragraph: &mut Option<SearchBlockAccumulator>,
+    current_code_block: &mut Option<SearchBlockAccumulator>,
+    item_stack: &mut [SearchBlockAccumulator],
+    fragment: &str,
+) {
+    if let Some(code_block) = current_code_block {
+        code_block.push_fragment(fragment);
+        return;
+    }
+
+    if let Some(paragraph) = current_paragraph {
+        paragraph.push_fragment(fragment);
+    }
+
+    if let Some(item) = item_stack.last_mut() {
+        item.push_fragment(fragment);
+    }
+}
+
+fn push_search_space(
+    current_paragraph: &mut Option<SearchBlockAccumulator>,
+    current_code_block: &mut Option<SearchBlockAccumulator>,
+    item_stack: &mut [SearchBlockAccumulator],
+) {
+    if let Some(code_block) = current_code_block {
+        code_block.push_space();
+        return;
+    }
+
+    if let Some(paragraph) = current_paragraph {
+        paragraph.push_space();
+    }
+
+    if let Some(item) = item_stack.last_mut() {
+        item.push_space();
+    }
+}
+
 fn inject_heading_ids(html: &str, headings: &[Heading]) -> String {
     let mut output = String::with_capacity(html.len() + headings.len() * 16);
     let mut remaining = html;
@@ -169,6 +357,23 @@ fn inject_heading_ids(html: &str, headings: &[Heading]) -> String {
         if let Some(index) = remaining.find(&needle) {
             output.push_str(&remaining[..index]);
             output.push_str(&format!("<h{} id=\"{}\">", heading.level, heading.id));
+            remaining = &remaining[index + needle.len()..];
+        }
+    }
+
+    output.push_str(remaining);
+    output
+}
+
+fn inject_search_target_ids(html: &str, targets: &[SearchHtmlTarget]) -> String {
+    let mut output = String::with_capacity(html.len() + targets.len() * 24);
+    let mut remaining = html;
+
+    for target in targets {
+        let needle = format!("<{}>", target.tag);
+        if let Some(index) = remaining.find(&needle) {
+            output.push_str(&remaining[..index]);
+            output.push_str(&format!("<{} id=\"{}\">", target.tag, target.id));
             remaining = &remaining[index + needle.len()..];
         }
     }
@@ -283,6 +488,15 @@ Body text.
         assert_eq!(rendered.title.as_deref(), Some("Hello"));
         assert_eq!(rendered.toc.len(), 2);
         assert!(rendered.plain_text.contains("Welcome to docs."));
+        assert!(rendered.html.contains("id=\"mz-search-block-1\""));
+        assert!(rendered.search_blocks.iter().any(|block| {
+            block.kind == "heading" && block.id == "hello" && block.text == "Hello"
+        }));
+        assert!(rendered.search_blocks.iter().any(|block| {
+            block.kind == "body"
+                && block.id.starts_with("mz-search-block-")
+                && block.text.contains("Welcome to docs.")
+        }));
     }
 
     #[test]

@@ -29,6 +29,10 @@ site_name = "Test Docs"
     let html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
     assert!(html.contains("Test Docs"));
     assert!(html.contains("doc-search"));
+    assert!(html.contains("id=\"page-title\""));
+    assert!(!html.contains("search-mode"));
+    assert!(!html.contains("highlight-color"));
+    assert!(!html.contains("color-swatch"));
     assert!(html.contains("data-theme-choice=\"dark\""));
     assert!(html.contains("minizensical-theme.js"));
     assert!(html.contains("minizensical-search.js"));
@@ -48,6 +52,11 @@ site_name = "Test Docs"
             .join("site/assets/minizensical-code.js")
             .exists()
     );
+    let search_js =
+        fs::read_to_string(temp_dir.path().join("site/assets/minizensical-search.js")).unwrap();
+    assert!(search_js.contains("mz-search"));
+    assert!(search_js.contains("search-target-active"));
+    assert!(search_js.contains("pageBody.addEventListener(\"click\""));
     let css = fs::read_to_string(temp_dir.path().join("site/assets/minizensical.css")).unwrap();
     assert!(css.contains("@font-face"));
     assert!(css.contains("fonts/demo-sans.woff2"));
@@ -119,7 +128,7 @@ nav = [
 
     let setup_html =
         fs::read_to_string(temp_dir.path().join("site/guide/setup/index.html")).unwrap();
-    assert!(setup_html.contains("<h1>Install</h1>"));
+    assert!(setup_html.contains("<h1 id=\"page-title\">Install</h1>"));
     assert!(setup_html.contains("Landing"));
     assert!(setup_html.contains("Overview"));
 }
@@ -171,25 +180,29 @@ The heading should also be searchable.
         .find(|entry| entry["title"] == "Custom Home")
         .unwrap();
 
-    assert_eq!(
-        entry["summary"].as_str().unwrap(),
-        "Searchable summary for the landing page."
-    );
-    assert!(
-        entry["tags"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|tag| tag == "rust")
-    );
-    assert!(
-        entry["headings"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|heading| heading == "Hidden H1" || heading == "Search Panel")
-    );
-    assert!(entry["body"].as_str().unwrap().contains("Body keyword"));
+    assert!(entry.get("summary").is_none());
+    assert!(entry.get("tags").is_none());
+    assert!(entry.get("headings").is_none());
+    assert!(entry.get("body").is_none());
+
+    let blocks = entry["blocks"].as_array().unwrap();
+    assert!(blocks.iter().any(|block| {
+        block["id"] == "page-title" && block["kind"] == "title" && block["text"] == "Custom Home"
+    }));
+    assert!(blocks.iter().any(|block| {
+        block["kind"] == "heading"
+            && (block["text"] == "Hidden H1" || block["text"] == "Search Panel")
+    }));
+    assert!(blocks.iter().any(|block| {
+        block["kind"] == "body"
+            && block["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("mz-search-block-"))
+            && block["text"]
+                .as_str()
+                .is_some_and(|text| text.contains("Body keyword"))
+    }));
+    assert!(!blocks.iter().any(|block| block["text"] == "rust"));
 }
 
 #[test]

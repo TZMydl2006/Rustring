@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
-use crate::markdown::render_markdown;
+use crate::markdown::{SearchBlock, render_markdown};
 use crate::scanner::{SourceFile, is_index_markdown, normalize_path, titleize};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -37,9 +37,12 @@ pub struct Page {
     pub search_excerpt: String,
     pub plain_text: String,
     pub search_headings: Vec<String>,
+    pub search_blocks: Vec<SearchBlock>,
     pub canonical_url: Option<String>,
     pub is_home: bool,
 }
+
+pub const PAGE_TITLE_SEARCH_ID: &str = "page-title";
 
 impl Page {
     pub fn from_source(config: &Config, source: &SourceFile) -> Result<Self> {
@@ -66,6 +69,12 @@ impl Page {
         let canonical_url = config.project.site_url.as_ref().map(|site_url| {
             canonical_url(site_url, &output_path, config.project.use_directory_urls)
         });
+        let mut search_blocks = vec![SearchBlock {
+            id: PAGE_TITLE_SEARCH_ID.to_string(),
+            kind: String::from("title"),
+            text: title.clone(),
+        }];
+        search_blocks.extend(rendered.search_blocks.clone());
 
         Ok(Self {
             source_path: source.source_path.clone(),
@@ -85,6 +94,7 @@ impl Page {
                 .filter(|heading| heading.level <= 2)
                 .map(|heading| heading.title)
                 .collect(),
+            search_blocks,
             canonical_url,
             is_home: is_root_index_page(&source.relative_path),
         })
