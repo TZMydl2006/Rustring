@@ -176,12 +176,13 @@ Markdown 解析模块。
 - 当前页面 active 状态
 - 上一页 / 下一页链接
 - 页面相对路径计算
-- 自动导航下基于 `order` 的同级排序
+- 自动导航下基于 `order` 的页面和目录分组排序
 
 注意：
 
 - 如果你配置了显式 `nav`，顺序以 `nav` 为准
 - 如果你不写 `nav`，自动导航会参考 front matter 里的 `order`
+- 目录分组的位置可以由该目录的 `index.md` 或 `README.md` 的 `order` 控制
 
 ### `src/render.rs`
 
@@ -518,7 +519,7 @@ site_url = "https://example.com"
 
 可选。
 
-- 不写：自动导航，顺序由目录结构和 `order` 决定
+- 不写：自动导航，顺序由页面和目录 `index.md` / `README.md` 的 `order` 决定
 - 写了：显式导航，顺序和标题以配置为准
 
 显式导航示例：
@@ -538,6 +539,7 @@ nav = [
 - 一个导航项不能同时写 `path` 和 `children`
 - `path` 必须相对 `docs/`
 - 如果显式 `nav` 和 front matter `order` 同时存在，导航顺序还是以 `nav` 为准
+- 自动导航下，目录分组会读取该目录 `index.md` 或 `README.md` 的 `order`
 
 ## 9. Front Matter 怎么用
 
@@ -569,7 +571,9 @@ order: 2
 - `title` 优先级高于 Markdown 里的 `# H1`
 - `summary` 会显示在页面顶部，也会作为页面描述使用
 - `tags` 会显示成标签，并用于按标签归档
-- `order` 只在自动导航下生效，用来调整同级页面顺序
+- `order` 只在自动导航下生效，用来调整同级页面或目录分组顺序
+- 如果 `order` 写在目录的 `index.md` 或 `README.md`，它会控制这个目录分组在父级导航里的位置
+- 没有写 `order` 的页面或目录分组会排在写了 `order` 的项目后面，并继续按路径兜底排序
 - `date` 用于归档页分组，推荐格式 `YYYY-MM-DD`（如 `2025-04-01`）
 
 ### 兼容性
@@ -738,6 +742,15 @@ site/assets/交大校徽-蓝色.png
 
 ```yaml
 order: 2
+```
+
+如果你想调整整个目录分组的位置，把 `order` 写在这个目录的 `index.md` 或 `README.md` 里：
+
+```yaml
+---
+title: Guide Overview
+order: 3
+---
 ```
 
 如果你使用显式导航，去改 `zensical.toml` 的 `nav` 顺序。

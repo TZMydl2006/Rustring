@@ -341,37 +341,6 @@ const MAIN_TEMPLATE: &str = r##"
     </aside>
 
     <main class="content">
-      {% if page.is_home %}
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Rust Course Project</p>
-          <h1>MiniZensical turns Markdown into a searchable course showcase.</h1>
-          <p class="hero-summary">We keep the zensical core workflow, then add front matter, instant search, live preview, and a more expressive reading experience.</p>
-          <div class="hero-actions">
-            <a class="hero-button primary" href="#search-showcase">See the new workflow</a>
-            <a class="hero-button secondary" href="#page-start">Read the homepage notes</a>
-          </div>
-        </div>
-        <div class="hero-grid">
-          <article class="hero-card" id="search-showcase">
-            <span class="hero-card-tag">Search</span>
-            <h2>Search the whole site in one box</h2>
-            <p>Titles, headings, and body text are indexed as jumpable sections.</p>
-          </article>
-          <article class="hero-card">
-            <span class="hero-card-tag">Writing</span>
-            <h2>Front matter controls pages</h2>
-            <p>Use <code>title</code>, <code>summary</code>, <code>tags</code>, and <code>order</code> to organize content without touching Rust code.</p>
-          </article>
-          <article class="hero-card">
-            <span class="hero-card-tag">Demo</span>
-            <h2>Local preview keeps up live</h2>
-            <p>The preview server rebuilds and refreshes automatically, which makes classroom demos much smoother.</p>
-          </article>
-        </div>
-      </section>
-      {% endif %}
-
       <article class="page" id="page-start">
         <header class="page-header">
           <p class="eyebrow">MiniZensical</p>
@@ -829,87 +798,6 @@ mark {
   gap: 24px;
 }
 
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-  gap: 22px;
-}
-
-.hero-copy,
-.hero-card {
-  padding: 28px;
-}
-
-.hero-copy {
-  border-radius: 28px;
-  background: var(--hero-surface);
-  color: var(--hero-text);
-  box-shadow: 0 24px 60px rgba(8, 72, 69, 0.24);
-}
-
-.hero-copy h1 {
-  margin: 0 0 16px;
-  font-size: clamp(2.2rem, 4vw, 4rem);
-  line-height: 1;
-  max-width: 14ch;
-}
-
-.hero-summary {
-  max-width: 60ch;
-  font-size: 1.02rem;
-  line-height: 1.75;
-  color: var(--hero-subtle);
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.hero-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 16px;
-  border-radius: 999px;
-  text-decoration: none;
-  font-weight: 700;
-}
-
-.hero-button.primary {
-  background: white;
-  color: var(--accent-strong);
-}
-
-.hero-button.secondary {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--hero-text);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.hero-grid {
-  display: grid;
-  gap: 18px;
-}
-
-.hero-card {
-  background: linear-gradient(180deg, var(--panel-solid), var(--panel));
-}
-
-.hero-card h2 {
-  margin: 10px 0 10px;
-  font-size: 1.18rem;
-}
-
-.hero-card p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.65;
-}
-
-.hero-card-tag,
 .tag-chip {
   display: inline-flex;
   align-items: center;
@@ -1223,12 +1111,6 @@ mark {
   }
 }
 
-@media (max-width: 920px) {
-  .hero {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 820px) {
   .shell {
     grid-template-columns: 1fr;
@@ -1240,9 +1122,7 @@ mark {
     position: static;
   }
 
-  .page,
-  .hero-copy,
-  .hero-card {
+  .page {
     padding: 24px;
   }
 

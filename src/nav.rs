@@ -3,6 +3,7 @@ use crate::error::{MiniZensicalError, Result};
 use crate::page::Page;
 use crate::scanner::{is_index_markdown, normalize_path, titleize};
 use serde::Serialize;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -82,37 +83,15 @@ impl Navigation {
 
     fn build_auto(pages: &mut [Page]) -> Self {
         let mut indices = (0..pages.len()).collect::<Vec<_>>();
-        indices.sort_by_key(|index| auto_sort_key(&pages[*index]));
+        indices.sort_by(|left, right| pages[*left].source_key.cmp(&pages[*right].source_key));
 
-        let mut items = Vec::new();
+        let mut root = AutoSection::root();
         for index in indices {
-            let page = &pages[index];
-            let mut components = path_components(&page.relative_source);
-            let file = components.pop().unwrap_or_default();
-
-            let mut section = &mut items;
-            for component in components {
-                let title = titleize(&component);
-                let position = section
-                    .iter()
-                    .position(|item: &NavItem| item.target.is_none() && item.title == title);
-                if let Some(position) = position {
-                    section = &mut section[position].children;
-                } else {
-                    section.push(NavItem::section(title));
-                    let last = section.len() - 1;
-                    section = &mut section[last].children;
-                }
-            }
-
-            let _ = file;
-            section.push(NavItem::page(
-                page.title.clone(),
-                page.source_key.clone(),
-                page.output_path.clone(),
-            ));
+            root.insert_page(&pages[index]);
         }
+        root.sort_recursive();
 
+        let items = root.into_nav_items();
         let mut page_order = Vec::new();
         collect_order(&items, &mut page_order);
         Self { items, page_order }
@@ -139,6 +118,174 @@ impl Navigation {
         }
 
         Ok(Self { items, page_order })
+    }
+}
+
+#[derive(Clone, Debug)]
+struct AutoSection {
+    title: String,
+    path_key: String,
+    section_order: Option<i32>,
+    children: Vec<AutoEntry>,
+}
+
+#[derive(Clone, Debug)]
+enum AutoEntry {
+    Section(AutoSection),
+    Page(AutoPage),
+}
+
+#[derive(Clone, Debug)]
+struct AutoPage {
+    title: String,
+    source_key: String,
+    path_key: String,
+    output_path: PathBuf,
+    order: Option<i32>,
+    is_section_index: bool,
+}
+
+impl AutoSection {
+    fn root() -> Self {
+        Self {
+            title: String::new(),
+            path_key: String::new(),
+            section_order: None,
+            children: Vec::new(),
+        }
+    }
+
+    fn new(title: String, path_key: String) -> Self {
+        Self {
+            title,
+            path_key,
+            section_order: None,
+            children: Vec::new(),
+        }
+    }
+
+    fn insert_page(&mut self, page: &Page) {
+        let mut components = path_components(&page.relative_source);
+        components.pop();
+        let is_index_page = is_index_markdown(&page.relative_source);
+        let is_section_index = !components.is_empty() && is_index_page;
+        let path_key = if components.is_empty() && is_index_page {
+            String::new()
+        } else {
+            page.source_key.clone()
+        };
+
+        let section = self.section_for_path(&components);
+        if is_section_index {
+            section.section_order = page.metadata.order;
+        }
+
+        section.children.push(AutoEntry::Page(AutoPage {
+            title: page.title.clone(),
+            source_key: page.source_key.clone(),
+            path_key,
+            output_path: page.output_path.clone(),
+            order: page.metadata.order,
+            is_section_index,
+        }));
+    }
+
+    fn section_for_path(&mut self, components: &[String]) -> &mut AutoSection {
+        let Some((component, remaining)) = components.split_first() else {
+            return self;
+        };
+
+        let path_key = if self.path_key.is_empty() {
+            component.clone()
+        } else {
+            format!("{}/{}", self.path_key, component)
+        };
+
+        let position = self
+            .children
+            .iter()
+            .position(|entry| matches!(entry, AutoEntry::Section(section) if section.path_key == path_key))
+            .unwrap_or_else(|| {
+                self.children
+                    .push(AutoEntry::Section(AutoSection::new(titleize(component), path_key)));
+                self.children.len() - 1
+            });
+
+        let AutoEntry::Section(section) = &mut self.children[position] else {
+            unreachable!("auto navigation section lookup only returns section entries");
+        };
+        section.section_for_path(remaining)
+    }
+
+    fn sort_recursive(&mut self) {
+        for child in &mut self.children {
+            if let AutoEntry::Section(section) = child {
+                section.sort_recursive();
+            }
+        }
+        self.children.sort_by(compare_auto_entries);
+    }
+
+    fn into_nav_items(self) -> Vec<NavItem> {
+        let AutoSection { children, .. } = self;
+        children.into_iter().map(AutoEntry::into_nav_item).collect()
+    }
+
+    fn into_nav_item(self) -> NavItem {
+        let AutoSection {
+            title, children, ..
+        } = self;
+        NavItem {
+            title,
+            target: None,
+            children: children.into_iter().map(AutoEntry::into_nav_item).collect(),
+        }
+    }
+}
+
+impl AutoEntry {
+    fn into_nav_item(self) -> NavItem {
+        match self {
+            AutoEntry::Section(section) => section.into_nav_item(),
+            AutoEntry::Page(page) => NavItem::page(page.title, page.source_key, page.output_path),
+        }
+    }
+}
+
+fn compare_auto_entries(left: &AutoEntry, right: &AutoEntry) -> Ordering {
+    auto_index_rank(left)
+        .cmp(&auto_index_rank(right))
+        .then_with(|| compare_auto_order(auto_order(left), auto_order(right)))
+        .then_with(|| auto_path_key(left).cmp(auto_path_key(right)))
+}
+
+fn auto_index_rank(entry: &AutoEntry) -> u8 {
+    match entry {
+        AutoEntry::Page(page) if page.is_section_index => 0,
+        _ => 1,
+    }
+}
+
+fn auto_order(entry: &AutoEntry) -> Option<i32> {
+    match entry {
+        AutoEntry::Section(section) => section.section_order,
+        AutoEntry::Page(page) => page.order,
+    }
+}
+
+fn compare_auto_order(left: Option<i32>, right: Option<i32>) -> Ordering {
+    match (left, right) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    }
+}
+
+fn auto_path_key(entry: &AutoEntry) -> &str {
+    match entry {
+        AutoEntry::Section(section) => &section.path_key,
+        AutoEntry::Page(page) => &page.path_key,
     }
 }
 
@@ -285,18 +432,6 @@ pub fn relative_href(from_file: &Path, to_file: &Path) -> String {
     } else {
         parts.join("/")
     }
-}
-
-fn auto_sort_key(page: &Page) -> (Vec<String>, i32, bool, String) {
-    let path = &page.relative_source;
-    let mut components = path_components(path);
-    let file = components.pop().unwrap_or_default();
-    (
-        components,
-        page.metadata.order.unwrap_or(i32::MAX),
-        !is_index_markdown(path),
-        file,
-    )
 }
 
 fn path_components(path: &Path) -> Vec<String> {

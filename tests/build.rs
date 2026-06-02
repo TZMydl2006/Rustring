@@ -206,21 +206,47 @@ The heading should also be searchable.
 }
 
 #[test]
-fn auto_navigation_uses_front_matter_order() {
+fn auto_navigation_orders_pages_and_sections_as_siblings() {
     let temp_dir = TempDir::new().expect("temp dir");
     write_file(
         temp_dir.path().join("zensical.toml"),
         r#"
 [project]
 site_name = "Auto Ordered Docs"
+	"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/index.md"),
+        r#"---
+title: Home
+order: 0
+---
+# Home
 "#,
     );
-    write_file(temp_dir.path().join("docs/index.md"), "# Home\n");
+    write_file(
+        temp_dir.path().join("docs/helloworld.md"),
+        r#"---
+title: Hello, World!
+order: 1
+---
+# Hello
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/project-showcase.md"),
+        r#"---
+title: Project Showcase
+order: 2
+---
+# Project
+"#,
+    );
     write_file(
         temp_dir.path().join("docs/guide/index.md"),
         r#"---
 title: Guide Overview
-order: 0
+order: 3
 ---
 # Guide
 "#,
@@ -241,16 +267,99 @@ title: Beta
 order: 1
 ---
 # Beta
+	"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/front-matter.md"),
+        r#"---
+title: Front Matter
+order: 3
+---
+# Front Matter
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/draft.md"),
+        r#"---
+title: Draft
+order: 99
+---
+# Draft
 "#,
     );
 
     let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
     build_site(&config).unwrap();
 
+    let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    let home_position = nav_position(&home_html, ">Home<");
+    let hello_position = nav_position(&home_html, ">Hello, World!<");
+    let project_position = nav_position(&home_html, ">Project Showcase<");
+    let guide_position = nav_position(&home_html, "<span class=\"nav-section\">Guide</span>");
+    let draft_position = nav_position(&home_html, ">Draft<");
+
+    assert!(home_position < hello_position);
+    assert!(hello_position < project_position);
+    assert!(project_position < guide_position);
+    assert!(guide_position < draft_position);
+
     let guide_html = fs::read_to_string(temp_dir.path().join("site/guide/index.html")).unwrap();
+    let overview_position = nav_position(&guide_html, ">Guide Overview<");
     let beta_position = guide_html.find(">Beta<").unwrap();
     let alpha_position = guide_html.find(">Alpha<").unwrap();
+    let front_matter_position = nav_position(&guide_html, ">Front Matter<");
+
+    assert!(overview_position < beta_position);
     assert!(beta_position < alpha_position);
+    assert!(alpha_position < front_matter_position);
+}
+
+#[test]
+fn auto_navigation_uses_stable_path_fallbacks() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Fallback Ordered Docs"
+"#,
+    );
+    write_file(temp_dir.path().join("docs/index.md"), "# Home\n");
+    write_file(temp_dir.path().join("docs/draft.md"), "# Draft\n");
+    write_file(temp_dir.path().join("docs/guide/index.md"), "# Guide\n");
+    write_file(
+        temp_dir.path().join("docs/tie-b.md"),
+        r#"---
+title: Tie B
+order: 1
+---
+# Tie B
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/tie-a.md"),
+        r#"---
+title: Tie A
+order: 1
+---
+# Tie A
+"#,
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    let tie_a_position = nav_position(&home_html, ">Tie A<");
+    let tie_b_position = nav_position(&home_html, ">Tie B<");
+    let home_position = nav_position(&home_html, ">Home<");
+    let draft_position = nav_position(&home_html, ">Draft<");
+    let guide_position = nav_position(&home_html, "<span class=\"nav-section\">Guide</span>");
+
+    assert!(tie_a_position < tie_b_position);
+    assert!(tie_b_position < home_position);
+    assert!(home_position < draft_position);
+    assert!(draft_position < guide_position);
 }
 
 #[test]
@@ -363,4 +472,9 @@ fn write_file(path: impl AsRef<Path>, contents: &str) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, contents).unwrap();
+}
+
+fn nav_position(html: &str, needle: &str) -> usize {
+    html.find(needle)
+        .unwrap_or_else(|| panic!("missing navigation item: {needle}"))
 }
