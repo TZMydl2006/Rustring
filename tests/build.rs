@@ -37,6 +37,7 @@ site_name = "Test Docs"
     assert!(html.contains("minizensical-theme.js"));
     assert!(html.contains("minizensical-search.js"));
     assert!(html.contains("minizensical-code.js"));
+    assert!(html.contains("minizensical-math.js"));
     assert!(html.contains("data-font-switcher"));
     assert!(html.contains("Demo Sans"));
     assert!(temp_dir.path().join("site/search.json").exists());
@@ -52,6 +53,12 @@ site_name = "Test Docs"
             .join("site/assets/minizensical-code.js")
             .exists()
     );
+    assert!(
+        temp_dir
+            .path()
+            .join("site/assets/minizensical-math.js")
+            .exists()
+    );
     let search_js =
         fs::read_to_string(temp_dir.path().join("site/assets/minizensical-search.js")).unwrap();
     assert!(search_js.contains("mz-search"));
@@ -60,6 +67,48 @@ site_name = "Test Docs"
     let css = fs::read_to_string(temp_dir.path().join("site/assets/minizensical.css")).unwrap();
     assert!(css.contains("@font-face"));
     assert!(css.contains("fonts/demo-sans.woff2"));
+    assert!(css.contains(".math-inline"));
+    assert!(css.contains("white-space: nowrap"));
+    assert!(css.contains("text-align: center !important"));
+}
+
+#[test]
+fn renders_inline_and_display_math_with_mathjax_support() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Math Docs"
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/index.md"),
+        "# Math\n\nInline: ( $V_{GS} > V_T$ ).\n\n中文 $Y$ 等于输出。\n\nEnglish $x$ value.\n\n$$\nY_0 = \\frac{A + B}{2}\n\nY_1 = A - B\n$$\n\n`$not_math$`\n",
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(html.contains(r#"(<span class="math math-inline">V_{GS} &gt; V_T</span>)."#));
+    assert!(html.contains(r#"中文<span class="math math-inline">Y</span>等于输出。"#));
+    assert!(html.contains(r#"English <span class="math math-inline">x</span> value."#));
+    assert!(html.contains(r#"<span class="math math-display">"#));
+    assert!(html.contains(
+        r#"\begin{gathered} Y_0 = \frac{A + B}{2} \\ Y_1 = A - B \end{gathered}</span>"#
+    ));
+    assert!(html.contains("<code>$not_math$</code>"));
+    assert!(html.contains("minizensical-math.js"));
+
+    let math_js =
+        fs::read_to_string(temp_dir.path().join("site/assets/minizensical-math.js")).unwrap();
+    assert!(math_js.contains("MathJax.tex2svgPromise"));
+    assert!(math_js.contains("document.head.appendChild(MathJax.svgStylesheet())"));
+    assert!(math_js.contains(r#"fontCache: "local""#));
+    assert!(math_js.contains(".trim()"));
+    assert!(!math_js.contains("rendered.style.width"));
+    assert!(math_js.contains("mathjax@3/es5/tex-svg.js"));
 }
 
 #[test]
@@ -89,6 +138,64 @@ site_name = "Nested Docs"
 
     let guide_html = fs::read_to_string(temp_dir.path().join("site/guide/index.html")).unwrap();
     assert!(guide_html.contains("setup&#x2f;index.html") || guide_html.contains("guide/setup/"));
+}
+
+#[test]
+fn relocates_local_markdown_images_and_preserves_external_urls() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Image Docs"
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/index.md"),
+        "# Home\n\n![root](./root.png)\n",
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/page.md"),
+        r#"# Image Paths
+
+![sibling](./sibling.png)
+![parent asset](../assets/shared.png)
+![nested asset](assets/local.png)
+![external](https://example.com/external.png)
+![external http](http://example.com/external.png)
+"#,
+    );
+    write_file(temp_dir.path().join("docs/root.png"), "root image");
+    write_file(
+        temp_dir.path().join("docs/guide/sibling.png"),
+        "sibling image",
+    );
+    write_file(
+        temp_dir.path().join("docs/assets/shared.png"),
+        "shared image",
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/assets/local.png"),
+        "local image",
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(home_html.contains(r#"src="root.png""#));
+
+    let page_html = fs::read_to_string(temp_dir.path().join("site/guide/page/index.html")).unwrap();
+    assert!(page_html.contains(r#"src="../sibling.png""#));
+    assert!(page_html.contains(r#"src="../../assets/shared.png""#));
+    assert!(page_html.contains(r#"src="../assets/local.png""#));
+    assert!(page_html.contains(r#"src="https://example.com/external.png""#));
+    assert!(page_html.contains(r#"src="http://example.com/external.png""#));
+
+    assert!(temp_dir.path().join("site/root.png").exists());
+    assert!(temp_dir.path().join("site/guide/sibling.png").exists());
+    assert!(temp_dir.path().join("site/assets/shared.png").exists());
+    assert!(temp_dir.path().join("site/guide/assets/local.png").exists());
 }
 
 #[test]
@@ -394,13 +501,20 @@ use_directory_urls = false
 "#,
     );
     write_file(temp_dir.path().join("docs/index.md"), "# Home\n");
-    write_file(temp_dir.path().join("docs/guide/setup.md"), "# Setup\n");
+    write_file(
+        temp_dir.path().join("docs/guide/setup.md"),
+        "# Setup\n\n![diagram](./diagram.png)\n",
+    );
+    write_file(temp_dir.path().join("docs/guide/diagram.png"), "diagram");
 
     let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
     build_site(&config).unwrap();
 
     assert!(temp_dir.path().join("site/index.html").exists());
     assert!(temp_dir.path().join("site/guide/setup.html").exists());
+    assert!(temp_dir.path().join("site/guide/diagram.png").exists());
+    let setup_html = fs::read_to_string(temp_dir.path().join("site/guide/setup.html")).unwrap();
+    assert!(setup_html.contains(r#"src="diagram.png""#));
 }
 
 #[test]

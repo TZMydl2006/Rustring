@@ -278,6 +278,7 @@ HTML 渲染模块。
 - `site/assets/minizensical-theme.js`
 - `site/assets/minizensical-search.js`
 - `site/assets/minizensical-code.js`
+- `site/assets/minizensical-math.js`
 - `site/assets/交大校徽-蓝色.png`
 
 一句话总结：
@@ -304,6 +305,8 @@ HTML 渲染模块。
 - 上一页 / 下一页链接
 - 页内目录
 - 复制静态资源
+- Markdown 本地图片路径自动重定位
+- Markdown 行内公式与块级公式渲染
 - 生成 `search.json`
 - 前端即时搜索
 - 日 / 夜间 / 跟随系统主题切换
@@ -393,6 +396,76 @@ HTML 渲染模块。
 - `tests/build.rs`：
   - 在集成测试中加入示例代码块和占位字体文件。
   - 校验生成页面包含 `minizensical-code.js`、字体切换入口、自动识别的字体按钮，以及 CSS 中的 `@font-face`。
+
+## 5.4 本次增量：Markdown 图片路径重定位实现说明
+
+本次更新让 Markdown 中的本地图片路径可以按照源文件位置书写，不再要求用户手工计算生成页面的 URL 深度：
+
+- 支持 `![alt](./image.png)`、`![alt](../assets/image.png)`、`![alt](assets/image.png)` 等常见本地图片写法。
+- 构建时先根据 Markdown 文件所在目录解析图片位置，再根据生成 HTML 所在目录计算最终相对路径。
+- `http://`、`https://` 等外部图片 URL 保持原样，不参与重写。
+- 非 Markdown 静态资源仍然按原有规则复制到 `site/` 的对应相对路径。
+- 普通文件链接不会自动重写，本次更新只处理嵌入图片。
+
+与功能直接相关的代码更新如下：
+
+- `src/markdown.rs`
+  在 Markdown 转 HTML 前重写本地图片事件中的目标路径，并保留外部 URL。
+- `src/page.rs`
+  在渲染 Markdown 时传入源文件相对路径和输出页面路径，为图片重定位提供上下文。
+- `tests/build.rs`
+  新增图片路径集成测试，覆盖根目录图片、子目录同级图片、上级 assets 图片、无 `./` 前缀图片和外部 URL。
+- `docs/guide/resources.md`
+  更新资源使用说明，统一要求嵌入图片路径相对于 Markdown 源文件书写。
+
+## 5.5 本次增量：Markdown 公式渲染实现说明
+
+本次更新增加了常用 LaTeX 公式渲染能力：
+
+- 行内公式使用 `$...$`，例如 `$V_{GS} > V_T$`。
+- 块级公式使用 `$$...$$`，例如 `$$ Y = \frac{A + B}{2} $$`。
+- 独立成行的 `$$` 支持包裹多行公式和内部空行；构建时会清理多余空白，并把普通多行内容包装为 `gathered` 环境逐行展示。
+- 行内公式会清理公式内部的首尾空白；中文文本、中文标点和括号邻接公式时，也会移除多余间隔，同时保留英文单词之间必要的空格。
+- 行内公式只增加防换行规则，不覆盖 MathJax SVG 自带的宽度和基线偏移，避免 CSS 冲突导致短公式出现空隙或与正文错位。
+- 行内 MathJax 容器使用居中对齐，使公式字形在浏览器分配的容器内部保持视觉居中。
+- 构建时由 `pulldown-cmark` 识别公式语法，生成 `.math-inline` 和 `.math-display` 容器。
+- 浏览器加载页面后，`minizensical-math.js` 会在页面包含公式时按需加载 MathJax，并将公式渲染为 SVG。
+- 行内代码和代码块中的 `$...$` 会保持原样，不会被误识别为公式。
+- 公式文本仍会进入页面纯文本和搜索块，避免搜索能力回退。
+
+常见写法示例：
+
+```md
+栅源电压为 $V_{GS}$。
+
+$$
+Y = \overline{AB}
+$$
+```
+
+需要按等号对齐等精细排版时，可以显式使用 LaTeX 的 `aligned` 环境和 `\\`：
+
+```md
+$$
+\begin{aligned}
+Y_0 &= \overline{A_3} \overline{A_2} A_1 + A_3 \\
+Y_1 &= \overline{A_3} A_2 + A_3
+\end{aligned}
+$$
+```
+
+与功能直接相关的代码更新如下：
+
+- `src/markdown.rs`
+  启用 `Options::ENABLE_MATH`，并在纯文本和搜索块提取时保留公式内容。
+- `src/render.rs`
+  新增公式样式、`minizensical-math.js` 和页面脚本入口。
+- `src/build.rs`
+  构建时生成 `site/assets/minizensical-math.js`，并为普通页面注入正确的相对路径。
+- `tests/build.rs`
+  增加公式构建测试，覆盖行内公式、块级公式、代码保护和 MathJax 脚本生成。
+
+注意：公式排版依赖浏览器访问 MathJax CDN。页面在离线环境下仍会显示原始公式文本，但不会转换为 SVG 排版结果。
 
 ## 6. 现在还没有做什么
 

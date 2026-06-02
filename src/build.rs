@@ -4,9 +4,9 @@ use crate::nav::{NavItem, Navigation, PageLink, RenderNavItem, relative_href};
 use crate::page::Page;
 use crate::render::{
     ArchiveGroup, ArchiveSection, FontOption, code_script_contents, code_script_path,
-    default_font_options, render_archive_index, render_page, render_tag_archive,
-    search_script_contents, search_script_path, stylesheet_contents, stylesheet_path,
-    theme_script_contents, theme_script_path,
+    default_font_options, math_script_contents, math_script_path, render_archive_index,
+    render_page, render_tag_archive, search_script_contents, search_script_path,
+    stylesheet_contents, stylesheet_path, theme_script_contents, theme_script_path,
 };
 use crate::scanner::{SourceFile, scan_site, titleize};
 use crate::search::{build_search_index, search_index_path};
@@ -343,6 +343,11 @@ fn write_theme_assets(config: &Config, font_options: &[FontOption]) -> Result<()
         code_script_path(),
         code_script_contents().as_bytes(),
     )?;
+    write_asset(
+        config,
+        math_script_path(),
+        math_script_contents().as_bytes(),
+    )?;
     Ok(())
 }
 
@@ -385,6 +390,8 @@ fn render_pages(
         );
         let code_script_href =
             relative_href(&page.output_path, Path::new("assets/minizensical-code.js"));
+        let math_script_href =
+            relative_href(&page.output_path, Path::new("assets/minizensical-math.js"));
         let search_index_href = relative_href(&page.output_path, Path::new("search.json"));
         let html = render_page(
             config,
@@ -397,6 +404,7 @@ fn render_pages(
             &theme_script_href,
             &search_script_href,
             &code_script_href,
+            &math_script_href,
             &search_index_href,
             font_options,
         )?;

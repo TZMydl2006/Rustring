@@ -48,8 +48,13 @@ impl Page {
     pub fn from_source(config: &Config, source: &SourceFile) -> Result<Self> {
         let markdown = fs::read_to_string(&source.source_path)
             .map_err(|error| MiniZensicalError::io("read", &source.source_path, error))?;
-        let rendered = render_markdown(&markdown, &source.source_path)?;
         let output_path = output_path_for(&source.relative_path, config.project.use_directory_urls);
+        let rendered = render_markdown(
+            &markdown,
+            &source.source_path,
+            &source.relative_path,
+            &output_path,
+        )?;
         let title = rendered
             .metadata
             .title

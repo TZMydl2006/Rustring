@@ -3,7 +3,7 @@ use crate::page::{PageMetadata, TocItem};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct RenderedMarkdown {
@@ -30,13 +30,23 @@ pub struct SearchBlock {
     pub text: String,
 }
 
-pub fn render_markdown(markdown: &str, source_path: &Path) -> Result<RenderedMarkdown> {
+pub fn render_markdown(
+    markdown: &str,
+    source_path: &Path,
+    relative_source: &Path,
+    output_path: &Path,
+) -> Result<RenderedMarkdown> {
     let (metadata, body) = split_front_matter(markdown, source_path)?;
+    let normalized_body = normalize_display_math_blocks(body);
+    let body = normalized_body.as_str();
     let headings = extract_headings(body);
     let (body_search_blocks, search_targets) = extract_body_search_blocks(body);
 
     let mut html_output = String::new();
-    html::push_html(&mut html_output, Parser::new_ext(body, options()));
+    let events = Parser::new_ext(body, options())
+        .map(|event| relocate_image_event(event, relative_source, output_path));
+    let events = normalize_math_events(events.collect());
+    html::push_html(&mut html_output, events.into_iter());
     let html = inject_search_target_ids(
         &inject_heading_ids(&html_output, &headings),
         &search_targets,
@@ -74,6 +84,287 @@ pub fn render_markdown(markdown: &str, source_path: &Path) -> Result<RenderedMar
         search_blocks,
         metadata,
     })
+}
+
+fn normalize_math_events<'a>(events: Vec<Event<'a>>) -> Vec<Event<'a>> {
+    let mut events = events
+        .into_iter()
+        .map(|event| match event {
+            Event::InlineMath(text) => Event::InlineMath(text.trim().to_string().into()),
+            Event::DisplayMath(text) => Event::DisplayMath(text.trim().to_string().into()),
+            _ => event,
+        })
+        .collect::<Vec<_>>();
+
+    for index in 0..events.len() {
+        if !matches!(events[index], Event::InlineMath(_)) {
+            continue;
+        }
+        trim_space_before_inline_math(&mut events[..index]);
+        trim_space_after_inline_math(&mut events[index + 1..]);
+    }
+
+    events
+}
+
+fn trim_space_before_inline_math(events: &mut [Event<'_>]) {
+    let Some(Event::Text(text)) = events.last_mut() else {
+        return;
+    };
+    let trimmed = text.trim_end();
+    if trimmed.ends_with(is_cjk_or_opening_punctuation) {
+        *text = trimmed.to_string().into();
+    }
+}
+
+fn trim_space_after_inline_math(events: &mut [Event<'_>]) {
+    let Some(Event::Text(text)) = events.first_mut() else {
+        return;
+    };
+    let trimmed = text.trim_start();
+    if trimmed.starts_with(is_cjk_or_closing_punctuation) {
+        *text = trimmed.to_string().into();
+    }
+}
+
+fn is_cjk_or_opening_punctuation(character: char) -> bool {
+    is_cjk(character) || matches!(character, '(' | '[' | '{' | '<' | '（' | '【' | '《' | '“')
+}
+
+fn is_cjk_or_closing_punctuation(character: char) -> bool {
+    is_cjk(character)
+        || matches!(
+            character,
+            ')' | ']'
+                | '}'
+                | '>'
+                | ','
+                | '.'
+                | ';'
+                | ':'
+                | '!'
+                | '?'
+                | '）'
+                | '】'
+                | '》'
+                | '，'
+                | '。'
+                | '；'
+                | '：'
+                | '！'
+                | '？'
+                | '”'
+        )
+}
+
+fn is_cjk(character: char) -> bool {
+    matches!(
+        character,
+        '\u{2e80}'..='\u{2eff}'
+            | '\u{3000}'..='\u{303f}'
+            | '\u{3400}'..='\u{4dbf}'
+            | '\u{4e00}'..='\u{9fff}'
+            | '\u{f900}'..='\u{faff}'
+    )
+}
+
+fn normalize_display_math_blocks(markdown: &str) -> String {
+    let mut output = String::with_capacity(markdown.len());
+    let mut pending_math_lines: Option<Vec<&str>> = None;
+    let mut fence = None;
+
+    for line in markdown.split_inclusive('\n') {
+        let trimmed = trim_line(line).trim();
+
+        if let Some(lines) = &mut pending_math_lines {
+            if trimmed == "$$" {
+                let formula = normalize_display_math_contents(lines);
+                output.push_str("$$");
+                output.push_str(&formula);
+                output.push_str("$$\n");
+                pending_math_lines = None;
+            } else {
+                lines.push(line);
+            }
+            continue;
+        }
+
+        if let Some((marker, length)) = fence {
+            output.push_str(line);
+            if is_closing_fence(trimmed, marker, length) {
+                fence = None;
+            }
+            continue;
+        }
+
+        if let Some(opening_fence) = opening_fence(trimmed) {
+            fence = Some(opening_fence);
+            output.push_str(line);
+        } else if trimmed == "$$" {
+            pending_math_lines = Some(Vec::new());
+        } else {
+            output.push_str(line);
+        }
+    }
+
+    if let Some(lines) = pending_math_lines {
+        output.push_str("$$\n");
+        for line in lines {
+            output.push_str(line);
+        }
+    }
+
+    output
+}
+
+fn normalize_display_math_contents(lines: &[&str]) -> String {
+    let lines = lines
+        .iter()
+        .map(|line| trim_line(line).trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    let formula = lines.join(" ");
+
+    if lines.len() <= 1 || formula.contains(r"\begin{") || formula.contains(r"\\") {
+        formula
+    } else {
+        format!(
+            r"\begin{{gathered}} {} \end{{gathered}}",
+            lines.join(r" \\ ")
+        )
+    }
+}
+
+fn opening_fence(line: &str) -> Option<(char, usize)> {
+    let mut chars = line.chars();
+    let marker = chars.next()?;
+    if !matches!(marker, '`' | '~') {
+        return None;
+    }
+
+    let length = 1 + chars.take_while(|character| *character == marker).count();
+    (length >= 3).then_some((marker, length))
+}
+
+fn is_closing_fence(line: &str, marker: char, opening_length: usize) -> bool {
+    let length = line
+        .chars()
+        .take_while(|character| *character == marker)
+        .count();
+    length >= opening_length && line[length..].trim().is_empty()
+}
+
+fn relocate_image_event<'a>(
+    event: Event<'a>,
+    relative_source: &Path,
+    output_path: &Path,
+) -> Event<'a> {
+    match event {
+        Event::Start(Tag::Image {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => {
+            let dest_url = relocate_image_url(&dest_url, relative_source, output_path)
+                .map(Into::into)
+                .unwrap_or(dest_url);
+            Event::Start(Tag::Image {
+                link_type,
+                dest_url,
+                title,
+                id,
+            })
+        }
+        _ => event,
+    }
+}
+
+fn relocate_image_url(
+    destination: &str,
+    relative_source: &Path,
+    output_path: &Path,
+) -> Option<String> {
+    let (path, suffix) = split_url_suffix(destination);
+    if !is_local_relative_url(path) {
+        return None;
+    }
+
+    let source_dir = relative_source.parent().unwrap_or_else(|| Path::new(""));
+    let asset_path = normalize_docs_relative_path(&source_dir.join(path))?;
+    Some(format!(
+        "{}{}",
+        relative_url(output_path, &asset_path),
+        suffix
+    ))
+}
+
+fn split_url_suffix(destination: &str) -> (&str, &str) {
+    let suffix_start = destination
+        .char_indices()
+        .find_map(|(index, character)| matches!(character, '?' | '#').then_some(index))
+        .unwrap_or(destination.len());
+    destination.split_at(suffix_start)
+}
+
+fn is_local_relative_url(url: &str) -> bool {
+    if url.is_empty() || url.starts_with(['/', '\\']) {
+        return false;
+    }
+
+    !url.char_indices().any(|(index, character)| {
+        character == ':'
+            && url[..index].chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '.')
+            })
+    })
+}
+
+fn normalize_docs_relative_path(path: &Path) -> Option<PathBuf> {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => normalized.push(part),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    Some(normalized)
+}
+
+fn relative_url(from_file: &Path, to_file: &Path) -> String {
+    let from_dir = from_file.parent().unwrap_or_else(|| Path::new(""));
+    let from_parts = normal_components(from_dir);
+    let to_parts = normal_components(to_file);
+    let mut shared = 0;
+    while shared < from_parts.len()
+        && shared < to_parts.len()
+        && from_parts[shared] == to_parts[shared]
+    {
+        shared += 1;
+    }
+
+    let mut parts = vec!["..".to_string(); from_parts.len().saturating_sub(shared)];
+    parts.extend(to_parts.into_iter().skip(shared));
+    if parts.is_empty() {
+        String::from(".")
+    } else {
+        parts.join("/")
+    }
+}
+
+fn normal_components(path: &Path) -> Vec<String> {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn split_front_matter<'a>(
@@ -128,7 +419,12 @@ fn extract_headings(markdown: &str) -> Vec<Heading> {
                 current_level = Some(heading_level(level));
                 current_text.clear();
             }
-            Event::Text(text) | Event::Code(text) if current_level.is_some() => {
+            Event::Text(text)
+            | Event::Code(text)
+            | Event::InlineMath(text)
+            | Event::DisplayMath(text)
+                if current_level.is_some() =>
+            {
                 current_text.push_str(&text);
             }
             Event::SoftBreak | Event::HardBreak if current_level.is_some() => {
@@ -158,7 +454,10 @@ fn extract_plain_text(markdown: &str) -> String {
 
     for event in Parser::new_ext(markdown, options()) {
         match event {
-            Event::Text(fragment) | Event::Code(fragment) => push_fragment(&mut text, &fragment),
+            Event::Text(fragment)
+            | Event::Code(fragment)
+            | Event::InlineMath(fragment)
+            | Event::DisplayMath(fragment) => push_fragment(&mut text, &fragment),
             Event::SoftBreak | Event::HardBreak => text.push(' '),
             Event::End(TagEnd::Paragraph)
             | Event::End(TagEnd::Heading(_))
@@ -282,7 +581,10 @@ fn extract_body_search_blocks(markdown: &str) -> (Vec<SearchBlock>, Vec<SearchHt
                     }
                 }
             }
-            Event::Text(fragment) | Event::Code(fragment) => {
+            Event::Text(fragment)
+            | Event::Code(fragment)
+            | Event::InlineMath(fragment)
+            | Event::DisplayMath(fragment) => {
                 push_search_fragment(
                     &mut current_paragraph,
                     &mut current_code_block,
@@ -438,6 +740,7 @@ fn options() -> Options {
     options.insert(Options::ENABLE_TASKLISTS);
     options.insert(Options::ENABLE_FOOTNOTES);
     options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
+    options.insert(Options::ENABLE_MATH);
     options
 }
 
@@ -466,6 +769,8 @@ order: 2
 Body text.
 "#,
             Path::new("docs/example.md"),
+            Path::new("example.md"),
+            Path::new("example/index.html"),
         )
         .unwrap();
 
@@ -482,6 +787,8 @@ Body text.
         let rendered = render_markdown(
             "# Hello\n\n## Intro\n\nWelcome to docs.\n",
             Path::new("docs/index.md"),
+            Path::new("index.md"),
+            Path::new("index.html"),
         )
         .unwrap();
         assert_eq!(rendered.metadata.title, None);
@@ -504,9 +811,54 @@ Body text.
         let error = render_markdown(
             "---\ntitle: [oops\n---\n# Hello\n",
             Path::new("docs/broken.md"),
+            Path::new("broken.md"),
+            Path::new("broken/index.html"),
         )
         .unwrap_err();
 
         assert!(error.to_string().contains("front matter"));
+    }
+
+    #[test]
+    fn renders_inline_and_display_math_without_touching_code() {
+        let rendered = render_markdown(
+            "# Math\n\nInline: $V_{GS} > V_T$.\n\n中文 $Y$ 等于输出。\n\nParentheses: ( $V_{GS}$ )\n\nEnglish $x$ value.\n\n$$\nY_0 = \\overline{AB}\n\nY_1 = A + B\n$$\n\n`$not_math$`\n\n```text\n$$\n$also_not_math$\n$$\n```\n",
+            Path::new("docs/math.md"),
+            Path::new("math.md"),
+            Path::new("math/index.html"),
+        )
+        .unwrap();
+
+        assert!(
+            rendered
+                .html
+                .contains(r#"<span class="math math-inline">V_{GS} &gt; V_T</span>"#)
+        );
+        assert!(
+            rendered
+                .html
+                .contains(r#"中文<span class="math math-inline">Y</span>等于输出。"#)
+        );
+        assert!(
+            rendered
+                .html
+                .contains(r#"Parentheses: (<span class="math math-inline">V_{GS}</span>)"#)
+        );
+        assert!(
+            rendered
+                .html
+                .contains(r#"English <span class="math math-inline">x</span> value."#)
+        );
+        assert!(
+            rendered
+                .html
+                .contains(r#"<span class="math math-display">"#)
+        );
+        assert!(rendered.html.contains(
+            r#"\begin{gathered} Y_0 = \overline{AB} \\ Y_1 = A + B \end{gathered}</span>"#
+        ));
+        assert!(rendered.html.contains("<code>$not_math$</code>"));
+        assert!(rendered.html.contains("$also_not_math$"));
+        assert!(rendered.plain_text.contains("V_{GS} > V_T"));
     }
 }

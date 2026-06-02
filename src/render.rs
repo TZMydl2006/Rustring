@@ -17,6 +17,7 @@ pub fn render_page(
     theme_script_href: &str,
     search_script_href: &str,
     code_script_href: &str,
+    math_script_href: &str,
     search_index_href: &str,
     font_options: &[FontOption],
 ) -> Result<String> {
@@ -47,6 +48,7 @@ pub fn render_page(
         theme_script_href => theme_script_href.to_string(),
         search_script_href => search_script_href.to_string(),
         code_script_href => code_script_href.to_string(),
+        math_script_href => math_script_href.to_string(),
         search_index_href => search_index_href.to_string(),
         font_options => font_options.iter().collect::<Vec<_>>(),
     })?;
@@ -239,6 +241,14 @@ pub fn code_script_contents() -> &'static str {
     CODE_SCRIPT
 }
 
+pub fn math_script_path() -> PathBuf {
+    PathBuf::from("assets/minizensical-math.js")
+}
+
+pub fn math_script_contents() -> &'static str {
+    MATH_SCRIPT
+}
+
 pub fn theme_script_path() -> PathBuf {
     PathBuf::from("assets/minizensical-theme.js")
 }
@@ -401,6 +411,7 @@ const MAIN_TEMPLATE: &str = r##"
 
   <script src="{{ theme_script_href }}"></script>
   <script src="{{ code_script_href }}"></script>
+  <script src="{{ math_script_href }}"></script>
   <script src="{{ search_script_href }}"></script>
 </body>
 </html>
@@ -1013,6 +1024,31 @@ mark {
   max-width: 100%;
   border-radius: 22px;
   box-shadow: 0 18px 35px rgba(12, 37, 39, 0.12);
+}
+
+.math {
+  font-family: var(--content-font);
+}
+
+.math-inline {
+  white-space: nowrap;
+}
+
+.math-display {
+  display: block;
+  max-width: 100%;
+  margin: 1.1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+.math mjx-container {
+  margin: 0 !important;
+}
+
+.math-inline mjx-container {
+  text-align: center !important;
 }
 
 .pager {
@@ -1827,6 +1863,47 @@ const CODE_SCRIPT: &str = r##"
   });
 })();
 "##;
+
+const MATH_SCRIPT: &str = r#"
+(() => {
+  const formulas = Array.from(document.querySelectorAll(".math"));
+  if (!formulas.length) {
+    return;
+  }
+
+  window.MathJax = {
+    startup: {
+      typeset: false,
+      ready() {
+        MathJax.startup.defaultReady();
+        Promise.all(formulas.map(async (element) => {
+          const source = (element.textContent || "").trim();
+          if (!source) {
+            return;
+          }
+          const display = element.classList.contains("math-display");
+          const rendered = await MathJax.tex2svgPromise(source, { display });
+          element.replaceChildren(rendered);
+          element.classList.add("math-rendered");
+        })).then(() => {
+          document.head.appendChild(MathJax.svgStylesheet());
+        }).catch((error) => {
+          console.error("MathJax rendering failed:", error);
+        });
+      }
+    },
+    svg: {
+      fontCache: "local"
+    }
+  };
+
+  const script = document.createElement("script");
+  script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
+  script.async = true;
+  script.dataset.minizensicalMathjax = "true";
+  document.head.appendChild(script);
+})();
+"#;
 
 const ARCHIVE_TEMPLATE: &str = r##"
 <!doctype html>

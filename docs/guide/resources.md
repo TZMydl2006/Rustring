@@ -23,26 +23,29 @@ Examples:
 
 ## Image syntax
 
-With `use_directory_urls = true` (default), image paths should be based on URL depth.
+Write local image paths relative to the Markdown source file, just as you would when previewing the Markdown file in an editor.
 
-Practical rule:
+During the build, MiniZensical resolves the image from the Markdown file location and rewrites the generated HTML path so that it points to the copied asset inside `site/`.
 
-- `docs/index.md` -> use `assets/aaa.png` (no `../`)
-- Other Markdown files directly under `docs/` (for example `docs/project-showcase.md`) -> use `../assets/aaa.png`
-- Files under `docs/xxx/` (for example `docs/guide/resources.md`) -> use `../../assets/aaa.png`
-- Each extra folder level adds one more `../`
+Supported local styles:
 
 Examples:
 
 ```md
-![example in docs/index.md](assets/aaa.png)
-![example in docs/project-showcase.md](../assets/aaa.png)
-![example in docs/guide/resources.md](../../assets/aaa.png)
+![same folder](./image.png)
+![parent assets folder](../assets/aaa.png)
+![nested assets folder](assets/aaa.png)
+```
+
+External image URLs are preserved without rewriting:
+
+```md
+![external image](https://example.com/image.png)
 ```
 
 Actual example on this page:
 
-![badge](../../assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png)
+![badge](../assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png)
 
 ## Link syntax
 
@@ -52,6 +55,8 @@ If you only want a clickable link instead of an embedded image:
 [view original](../../assets/aaa.png)
 ```
 
+Only embedded image paths are relocated automatically. Keep ordinary file links relative to the generated page URL.
+
 Actual example:
 
 [查看校徽原图](../../assets/%E4%BA%A4%E5%A4%A7%E6%A0%A1%E5%BE%BD-%E8%93%9D%E8%89%B2.png)
@@ -59,6 +64,6 @@ Actual example:
 ## Practical advice
 
 - Put reusable images in `docs/assets/`
-- Use paths relative to the output URL depth when `use_directory_urls = true`
+- Write embedded image paths relative to the Markdown source file
 - Run `cargo run -- build` for a one-time export
 - If `cargo run -- serve` is already running, saving the file is enough to trigger a rebuild and refresh
