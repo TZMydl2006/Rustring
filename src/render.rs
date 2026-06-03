@@ -699,6 +699,13 @@ pre {
   color: var(--ink);
 }
 
+.search-match.is-active {
+  border-color: rgba(13, 109, 104, 0.38);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .search-empty {
   margin: 0;
   color: var(--muted);
@@ -1407,12 +1414,69 @@ const SEARCH_SCRIPT: &str = r##"
   const indexUrl = new URL(searchIndexHref, window.location.href);
   const siteRootUrl = new URL(siteHomeHref || ".", window.location.href);
   let entries = [];
+  let bodyClearBound = false;
 
   const scrollTargetIntoView = (target, block = "start") => {
     if (!target) {
       return;
     }
     target.scrollIntoView({ block, behavior: "smooth" });
+  };
+
+  const decodeHashValue = (value) => {
+    if (!value) {
+      return "";
+    }
+    try {
+      return decodeURIComponent(value);
+    } catch (_error) {
+      return value;
+    }
+  };
+
+  const decodeHashId = () => decodeHashValue(window.location.hash.replace(/^#/, ""));
+
+  const normalizeContentPath = (pathname) => {
+    let path = pathname || "/";
+    if (path.endsWith("/index.html")) {
+      path = path.slice(0, -"/index.html".length);
+    }
+    if (path.length > 1 && path.endsWith("/")) {
+      path = path.slice(0, -1);
+    }
+    return path || "/";
+  };
+
+  const sameDocumentUrl = (url) =>
+    url.origin === window.location.origin
+    && normalizeContentPath(url.pathname) === normalizeContentPath(window.location.pathname);
+
+  const searchLocationKey = (url) => {
+    const query = url.searchParams.get("mz-search") || "";
+    const targetId = decodeHashValue(url.hash.replace(/^#/, ""));
+    if (!query || !targetId) {
+      return "";
+    }
+    return [
+      url.origin,
+      normalizeContentPath(url.pathname),
+      query,
+      targetId
+    ].join("|");
+  };
+
+  const syncActiveSearchMatch = () => {
+    const currentKey = searchLocationKey(new URL(window.location.href));
+    document.querySelectorAll(".search-match").forEach((anchor) => {
+      const matchKey = searchLocationKey(new URL(anchor.href, window.location.href));
+      const active = Boolean(currentKey && matchKey === currentKey);
+      anchor.classList.toggle("is-active", active);
+      if (active) {
+        anchor.setAttribute("aria-current", "true");
+      } else {
+        anchor.removeAttribute("aria-current");
+      }
+    });
   };
 
   const targetFromHash = () => {
@@ -1590,6 +1654,7 @@ const SEARCH_SCRIPT: &str = r##"
     }).join("");
 
     results.innerHTML = html;
+    syncActiveSearchMatch();
     status.textContent = totalMatches + " match(es) in " + groups.length + " page(s) for " + query + ".";
   };
 
@@ -1620,18 +1685,6 @@ const SEARCH_SCRIPT: &str = r##"
     renderResults(normalized, groups);
   };
 
-  const decodeHashId = () => {
-    const raw = window.location.hash.replace(/^#/, "");
-    if (!raw) {
-      return "";
-    }
-    try {
-      return decodeURIComponent(raw);
-    } catch (_error) {
-      return raw;
-    }
-  };
-
   const removeTargetMarks = () => {
     document.querySelectorAll("mark[data-search-target-mark]").forEach((mark) => {
       const parent = mark.parentNode;
@@ -1643,17 +1696,22 @@ const SEARCH_SCRIPT: &str = r##"
     });
   };
 
-  const clearTargetHighlight = () => {
+  const clearRenderedTargetHighlight = () => {
     document.querySelectorAll(".search-target-active").forEach((element) => {
       element.classList.remove("search-target-active");
     });
     removeTargetMarks();
+  };
+
+  const clearTargetHighlight = () => {
+    clearRenderedTargetHighlight();
 
     const url = new URL(window.location.href);
     if (url.searchParams.has("mz-search")) {
       url.searchParams.delete("mz-search");
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
+    syncActiveSearchMatch();
   };
 
   const highlightTargetText = (target, terms) => {
@@ -1700,7 +1758,21 @@ const SEARCH_SCRIPT: &str = r##"
     });
   };
 
-  const applyTargetHighlight = () => {
+  const bindBodyClear = () => {
+    if (bodyClearBound) {
+      return;
+    }
+
+    const pageBody = document.querySelector(".page-body");
+    if (!pageBody) {
+      return;
+    }
+
+    pageBody.addEventListener("click", clearTargetHighlight);
+    bodyClearBound = true;
+  };
+
+  const syncTargetHighlight = ({ scroll = false } = {}) => {
     const url = new URL(window.location.href);
     const query = url.searchParams.get("mz-search") || "";
     const targetId = decodeHashId();
@@ -1708,29 +1780,50 @@ const SEARCH_SCRIPT: &str = r##"
     if (query && !input.value) {
       input.value = query;
     }
+    clearRenderedTargetHighlight();
+
     if (!query || !targetId) {
+      syncActiveSearchMatch();
       return;
     }
 
     const target = document.getElementById(targetId);
     if (!target) {
+      syncActiveSearchMatch();
       return;
     }
 
     const terms = termsForQuery(query);
     target.classList.add("search-target-active");
     highlightTargetText(target, terms);
-    window.setTimeout(() => scrollTargetIntoView(target, "center"), 30);
+    bindBodyClear();
+    syncActiveSearchMatch();
 
-    const pageBody = document.querySelector(".page-body");
-    if (pageBody) {
-      pageBody.addEventListener("click", clearTargetHighlight, { once: true });
+    if (scroll) {
+      window.setTimeout(() => scrollTargetIntoView(target, "center"), 30);
     }
+  };
+
+  const handleSearchResultClick = (event) => {
+    const eventTarget = event.target instanceof Element ? event.target : event.target.parentElement;
+    const anchor = eventTarget ? eventTarget.closest(".search-match") : null;
+    if (!anchor) {
+      return;
+    }
+
+    const targetUrl = new URL(anchor.href, window.location.href);
+    if (!sameDocumentUrl(targetUrl)) {
+      return;
+    }
+
+    event.preventDefault();
+    window.history.pushState(null, "", targetUrl.pathname + targetUrl.search + targetUrl.hash);
+    syncTargetHighlight({ scroll: true });
   };
 
   setupInPageAnchorScroll();
   revealInitialHashTarget();
-  applyTargetHighlight();
+  syncTargetHighlight({ scroll: true });
   status.textContent = "Loading the search index...";
 
   fetch(indexUrl, { cache: "no-store" })
@@ -1748,6 +1841,9 @@ const SEARCH_SCRIPT: &str = r##"
     });
 
   input.addEventListener("input", (e) => search(e.target.value));
+  results.addEventListener("click", handleSearchResultClick);
+  window.addEventListener("popstate", () => syncTargetHighlight({ scroll: true }));
+  window.addEventListener("hashchange", () => syncTargetHighlight({ scroll: true }));
 })();
 "##;
 

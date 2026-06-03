@@ -64,9 +64,17 @@ site_name = "Test Docs"
     assert!(search_js.contains("mz-search"));
     assert!(search_js.contains("search-target-active"));
     assert!(search_js.contains("pageBody.addEventListener(\"click\""));
+    assert!(search_js.contains("syncTargetHighlight"));
+    assert!(search_js.contains("history.pushState"));
+    assert!(search_js.contains("popstate"));
+    assert!(search_js.contains("hashchange"));
+    assert!(search_js.contains(".search-match"));
+    assert!(search_js.contains("aria-current"));
+    assert!(search_js.contains("is-active"));
     let css = fs::read_to_string(temp_dir.path().join("site/assets/minizensical.css")).unwrap();
     assert!(css.contains("@font-face"));
     assert!(css.contains("fonts/demo-sans.woff2"));
+    assert!(css.contains(".search-match.is-active"));
     assert!(css.contains(".math-inline"));
     assert!(css.contains("white-space: nowrap"));
     assert!(css.contains("text-align: center !important"));
