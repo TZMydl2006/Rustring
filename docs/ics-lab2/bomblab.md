@@ -7,7 +7,7 @@ tags:
   - assembly
   - debugging
 date: 2025-06-30
-order: 2
+order: 1
 ---
 
 # 从“拆炸弹”认识计算机程序——汇编语言

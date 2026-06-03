@@ -871,6 +871,9 @@ mark {
 .page-body h3,
 .page-body h4 {
   line-height: 1.18;
+}
+
+.page-body [id] {
   scroll-margin-top: 28px;
 }
 
@@ -1137,6 +1140,76 @@ mark {
   margin-bottom: 0;
 }
 
+@media (min-width: 1181px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .shell {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sidebar,
+  .content,
+  .toc {
+    min-height: 0;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(13, 109, 104, 0.34) transparent;
+  }
+
+  .sidebar,
+  .toc {
+    position: static;
+    align-self: stretch;
+  }
+
+  .sidebar,
+  .content {
+    padding-right: 18px;
+  }
+
+  .toc {
+    padding-right: 10px;
+  }
+
+  .sidebar::-webkit-scrollbar,
+  .content::-webkit-scrollbar,
+  .toc::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .sidebar::-webkit-scrollbar-track,
+  .content::-webkit-scrollbar-track,
+  .toc::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb,
+  .content::-webkit-scrollbar-thumb,
+  .toc::-webkit-scrollbar-thumb {
+    background: rgba(13, 109, 104, 0.28);
+    border-radius: 999px;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb:hover,
+  .content::-webkit-scrollbar-thumb:hover,
+  .toc::-webkit-scrollbar-thumb:hover {
+    background: rgba(13, 109, 104, 0.42);
+  }
+
+  .content {
+    align-self: stretch;
+  }
+}
+
 @media (max-width: 1180px) {
   .shell {
     grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
@@ -1334,6 +1407,57 @@ const SEARCH_SCRIPT: &str = r##"
   const indexUrl = new URL(searchIndexHref, window.location.href);
   const siteRootUrl = new URL(siteHomeHref || ".", window.location.href);
   let entries = [];
+
+  const scrollTargetIntoView = (target, block = "start") => {
+    if (!target) {
+      return;
+    }
+    target.scrollIntoView({ block, behavior: "smooth" });
+  };
+
+  const targetFromHash = () => {
+    const targetId = decodeHashId();
+    return targetId ? document.getElementById(targetId) : null;
+  };
+
+  const setupInPageAnchorScroll = () => {
+    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+      anchor.addEventListener("click", (event) => {
+        const href = anchor.getAttribute("href") || "";
+        if (href === "#") {
+          return;
+        }
+
+        let targetId = "";
+        try {
+          targetId = decodeURIComponent(href.slice(1));
+        } catch (_error) {
+          targetId = href.slice(1);
+        }
+
+        const target = document.getElementById(targetId);
+        if (!target) {
+          return;
+        }
+
+        event.preventDefault();
+        window.history.pushState(null, "", "#" + encodeURIComponent(targetId));
+        scrollTargetIntoView(target);
+      });
+    });
+  };
+
+  const revealInitialHashTarget = () => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("mz-search")) {
+      return;
+    }
+
+    const target = targetFromHash();
+    if (target) {
+      window.setTimeout(() => scrollTargetIntoView(target), 30);
+    }
+  };
 
   const escapeHtml = (value) =>
     String(value || "").replace(/[&<>\"']/g, (character) => ({
@@ -1596,7 +1720,7 @@ const SEARCH_SCRIPT: &str = r##"
     const terms = termsForQuery(query);
     target.classList.add("search-target-active");
     highlightTargetText(target, terms);
-    window.setTimeout(() => target.scrollIntoView({ block: "center", behavior: "smooth" }), 30);
+    window.setTimeout(() => scrollTargetIntoView(target, "center"), 30);
 
     const pageBody = document.querySelector(".page-body");
     if (pageBody) {
@@ -1604,6 +1728,8 @@ const SEARCH_SCRIPT: &str = r##"
     }
   };
 
+  setupInPageAnchorScroll();
+  revealInitialHashTarget();
   applyTargetHighlight();
   status.textContent = "Loading the search index...";
 
