@@ -33,6 +33,12 @@ pub enum MiniZensicalError {
         #[source]
         source: serde_json::Error,
     },
+    #[error("failed to serialize knowledge graph at {path}: {source}")]
+    SerializeGraph {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
     #[error("invalid config: {0}")]
     InvalidConfig(String),
     #[error("template rendering failed: {0}")]

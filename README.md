@@ -1011,3 +1011,115 @@ cargo run -- serve
 - 你应该尽量做小步、可测试、可回退的改动，并在提交前至少运行相关测试
 - 你不应该随意删除现有测试，除非同时提供覆盖相同行为的新测试
 - 你在多人协作时应该尽量减少大范围无关重构，优先避免制造不必要的合并冲突
+
+## 19. 主题扩展与知识图谱开发记录
+
+本次增量开发在不改变原有 `zensical.toml + docs/ -> site/` 主流程的前提下，扩展了主题系统，并新增基于 Markdown 文档的知识图谱 MVP。相关功能全部仍然在静态站点构建阶段完成，不引入后端 API、图数据库、AI/NLP 服务或大型前端框架。
+
+### 19.1 主题系统扩展
+
+更新位置：
+
+- `src/render.rs`
+
+主要作用：
+
+- 保留原有 `Light`、`Dark`、`System` 三种主题入口，并新增 `Sepia`、`Ocean`、`Forest` 三种展示型主题。
+- 继续使用 CSS 变量统一管理主题颜色，不把背景色、正文色、边框色、强调色、代码块样式散落硬编码到多个位置。
+- 新增并统一使用 `--control-border`、`--focus-ring`、`--item-border`、`--inline-code-bg`、`--quote-bg`、`--token-*` 等变量，让普通页面、归档页面、搜索结果、导航、引用块、行内代码和代码块都能随主题切换。
+- 主题选择继续保存到浏览器 `localStorage`，刷新页面后保留选择；`System` 模式仍然跟随浏览器 `prefers-color-scheme`。
+- 主题切换按钮文案从旧的 `Day` / `Night` 调整为更直接的 `Light` / `Dark`，并在普通页面、归档页面和知识图谱页面中保持一致。
+
+### 19.2 Markdown 链接提取
+
+更新位置：
+
+- `src/markdown.rs`
+- `src/page.rs`
+
+主要作用：
+
+- `RenderedMarkdown` 新增 `links: Vec<MarkdownLink>`，用于保存 Markdown 正文中的普通链接。
+- `MarkdownLink` 包含 `destination` 和可选 `title`，供后续图谱构建解析文档引用关系。
+- 链接提取通过 `pulldown-cmark` 的事件流完成，匹配 `Tag::Link` 事件，不使用脆弱的字符串正则匹配。
+- `Page` 新增 `links` 字段，把 Markdown 解析阶段得到的链接带入页面模型，供 `src/graph.rs` 使用。
+
+### 19.3 知识图谱数据生成
+
+更新位置：
+
+- `src/graph.rs`
+- `src/lib.rs`
+- `src/error.rs`
+- `src/build.rs`
+
+主要作用：
+
+- 新增 `src/graph.rs` 模块，定义 `Graph`、`GraphNode`、`GraphEdge`、`build_knowledge_graph(...)` 和 `graph_json_path()`。
+- 构建阶段新增输出 `site/graph.json`，JSON 由 `serde_json::to_vec_pretty` 生成，结构包含 `version`、`nodes` 和 `edges`。
+- 图谱节点类型包括：
+  - `document`：每篇 Markdown 页面生成一个文档节点，包含标题、URL、summary、tags、date、source。
+  - `tag`：front matter 中出现的每个标签生成一个标签节点。
+  - `topic`：H1 / H2 标题生成主题节点。
+- 图谱边类型包括：
+  - `has_tag`：文档指向标签，权重 `2.0`。
+  - `links_to`：文档指向被 Markdown 链接引用的站内文档，权重 `3.0`。
+  - `about_topic`：文档指向标题生成的主题，权重 `1.5`。
+  - `shared_tag`：共享标签的文档之间建立边，权重为共享标签数量乘以 `0.8`。
+  - `same_section`：位于同一目录下的文档之间建立边，权重 `0.5`。
+- 站内 Markdown 链接解析会跳过外链、根路径链接、不可解析路径和非 `.md` 目标，避免无效链接导致构建失败。
+- `src/error.rs` 新增 `SerializeGraph` 错误类型，用于报告 `graph.json` 序列化失败。
+- `src/lib.rs` 导出 `graph` 模块，让项目内部模块边界保持清晰。
+
+### 19.4 Knowledge Graph 页面
+
+更新位置：
+
+- `src/render.rs`
+- `src/build.rs`
+
+主要作用：
+
+- 构建阶段新增页面 `site/knowledge-graph/index.html`。
+- 导航中在 `Archive` 后追加 `Knowledge Graph` 入口。
+- 页面复用原有侧栏、搜索、主题切换和字体切换结构，保持现有视觉和交互风格。
+- 新增内置前端资源 `site/assets/minizensical-graph.js`，由 `src/render.rs` 中的 `GRAPH_SCRIPT` 输出。
+- 前端脚本通过 `fetch("../graph.json")` 读取图谱数据，并用原生 SVG 渲染节点和边。
+- 图谱页面支持：
+  - 文本过滤节点。
+  - 按 tag 过滤节点。
+  - 按 `document` / `tag` / `topic` 类型显示或隐藏节点。
+  - 点击 `document` 节点跳转到对应文档页面。
+  - 点击 `tag` 节点自动应用标签过滤。
+  - 点击 `topic` 节点自动填入关键词过滤。
+  - 右侧详情区展示当前节点的 label、type、summary、tags、source 和文档链接。
+
+### 19.5 测试与验收覆盖
+
+更新位置：
+
+- `tests/build.rs`
+- `src/markdown.rs`
+
+主要作用：
+
+- 集成测试新增对 `site/graph.json`、`site/knowledge-graph/index.html` 和 `site/assets/minizensical-graph.js` 的存在性检查。
+- 集成测试验证图谱 JSON 中包含 `document`、`tag`、`topic` 节点。
+- 集成测试验证 `has_tag`、`links_to`、`about_topic`、`shared_tag`、`same_section` 这些边能够生成。
+- Markdown 单元测试验证普通 Markdown 链接能通过 `pulldown-cmark` 事件流提取，且图片不会被误当成普通链接。
+- 原有最小站点构建测试同步验证新增主题 `Sepia`、`Ocean`、`Forest`、图谱页面入口和图谱脚本资源。
+
+验收时建议执行：
+
+```bash
+cargo test
+cargo run -- build
+```
+
+构建后重点检查：
+
+- `site/graph.json` 存在且是合法 JSON。
+- `site/knowledge-graph/index.html` 存在。
+- `site/assets/minizensical-graph.js` 存在。
+- 页面主题能切换到 `Light`、`Dark`、`System`、`Sepia`、`Ocean`、`Forest`。
+- 通过本地 HTTP 预览打开知识图谱页面时，节点能显示，tag / 文本 / 类型过滤能工作，document 节点能跳转到文档页。

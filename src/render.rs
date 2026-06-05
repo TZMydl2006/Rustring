@@ -158,6 +158,36 @@ pub fn render_tag_archive(
     )
 }
 
+pub fn render_knowledge_graph_page(
+    config: &Config,
+    navigation: &[RenderNavItem],
+    font_options: &[FontOption],
+) -> Result<String> {
+    let mut environment = Environment::new();
+    environment.add_template("knowledge-graph.html", KNOWLEDGE_GRAPH_TEMPLATE)?;
+    let template = environment.get_template("knowledge-graph.html")?;
+    let nav_html = render_navigation_html(navigation);
+
+    let rendered = template.render(context! {
+        site_name => config.project.site_name.clone(),
+        title => format!("Knowledge Graph - {}", config.project.site_name),
+        description => "Explore document, tag, and topic relationships generated from Markdown.".to_string(),
+        nav_html => nav_html,
+        home_href => "..".to_string(),
+        stylesheet_href => "../assets/minizensical.css".to_string(),
+        theme_boot_script => theme_boot_script(),
+        theme_script_href => "../assets/minizensical-theme.js".to_string(),
+        search_script_href => "../assets/minizensical-search.js".to_string(),
+        search_index_href => "../search.json".to_string(),
+        code_script_href => "../assets/minizensical-code.js".to_string(),
+        graph_script_href => "../assets/minizensical-graph.js".to_string(),
+        graph_json_href => "../graph.json".to_string(),
+        font_options => font_options.iter().collect::<Vec<_>>(),
+    })?;
+
+    Ok(rendered)
+}
+
 fn render_simple_page(
     config: &Config,
     page_title: &str,
@@ -249,6 +279,14 @@ pub fn math_script_contents() -> &'static str {
     MATH_SCRIPT
 }
 
+pub fn graph_script_path() -> PathBuf {
+    PathBuf::from("assets/minizensical-graph.js")
+}
+
+pub fn graph_script_contents() -> &'static str {
+    GRAPH_SCRIPT
+}
+
 pub fn theme_script_path() -> PathBuf {
     PathBuf::from("assets/minizensical-theme.js")
 }
@@ -328,9 +366,12 @@ const MAIN_TEMPLATE: &str = r##"
       <section class="theme-panel">
         <p class="theme-label">Theme</p>
         <div class="theme-toggle" data-theme-switcher>
-          <button type="button" class="theme-option" data-theme-choice="light">Day</button>
-          <button type="button" class="theme-option" data-theme-choice="dark">Night</button>
+          <button type="button" class="theme-option" data-theme-choice="light">Light</button>
+          <button type="button" class="theme-option" data-theme-choice="dark">Dark</button>
           <button type="button" class="theme-option" data-theme-choice="system">System</button>
+          <button type="button" class="theme-option" data-theme-choice="sepia">Sepia</button>
+          <button type="button" class="theme-option" data-theme-choice="ocean">Ocean</button>
+          <button type="button" class="theme-option" data-theme-choice="forest">Forest</button>
         </div>
         <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
       </section>
@@ -442,6 +483,25 @@ const STYLE_SHEET: &str = r#"
   --ambient-b: rgba(13, 109, 104, 0.12);
   --code-bg: #102123;
   --code-ink: #eef5f3;
+  --code-border: rgba(205, 232, 232, 0.12);
+  --code-toolbar-bg: rgba(255, 255, 255, 0.05);
+  --control-border: rgba(13, 109, 104, 0.16);
+  --control-border-hover: rgba(13, 109, 104, 0.35);
+  --focus-ring: rgba(13, 109, 104, 0.2);
+  --item-border: rgba(13, 109, 104, 0.08);
+  --item-border-hover: rgba(13, 109, 104, 0.24);
+  --active-border: rgba(13, 109, 104, 0.38);
+  --inline-code-bg: rgba(16, 33, 35, 0.07);
+  --quote-bg: rgba(13, 109, 104, 0.04);
+  --quote-border: rgba(13, 109, 104, 0.25);
+  --token-comment: #8ea6a5;
+  --token-keyword: #86d7ff;
+  --token-string: #b8e986;
+  --token-number: #ffd479;
+  --token-function: #f5c2ff;
+  --token-operator: #ffb38a;
+  --token-tag: #8fdcff;
+  --token-attr: #ffd479;
   --content-font-default: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
   --content-font: var(--content-font-default);
   --code-font: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", monospace;
@@ -472,6 +532,141 @@ const STYLE_SHEET: &str = r#"
   --ambient-b: rgba(121, 214, 208, 0.12);
   --code-bg: #081114;
   --code-ink: #d9f7f4;
+  --code-border: rgba(205, 232, 232, 0.14);
+  --code-toolbar-bg: rgba(255, 255, 255, 0.04);
+  --control-border: rgba(121, 214, 208, 0.22);
+  --control-border-hover: rgba(121, 214, 208, 0.44);
+  --focus-ring: rgba(121, 214, 208, 0.22);
+  --item-border: rgba(121, 214, 208, 0.11);
+  --item-border-hover: rgba(121, 214, 208, 0.28);
+  --active-border: rgba(121, 214, 208, 0.42);
+  --inline-code-bg: rgba(121, 214, 208, 0.1);
+  --quote-bg: rgba(121, 214, 208, 0.07);
+  --quote-border: rgba(121, 214, 208, 0.28);
+  --token-comment: #89aaa8;
+  --token-keyword: #7fd4ff;
+  --token-string: #b8eb91;
+  --token-number: #ffdc8a;
+  --token-function: #e7bdff;
+  --token-operator: #ffad82;
+  --token-tag: #91dfff;
+  --token-attr: #ffd67a;
+}
+
+:root[data-theme="sepia"] {
+  color-scheme: light;
+  --bg: #efe3cc;
+  --panel: rgba(255, 249, 237, 0.88);
+  --panel-strong: rgba(255, 250, 240, 0.94);
+  --ink: #2d2418;
+  --muted: #6f5b42;
+  --accent: #8f4f24;
+  --accent-soft: rgba(143, 79, 36, 0.13);
+  --accent-strong: #59300f;
+  --warm: #b76e2d;
+  --line: rgba(73, 48, 20, 0.16);
+  --shadow: 0 22px 54px rgba(80, 52, 23, 0.14);
+  --bg-top: #f8ecd6;
+  --panel-solid: rgba(255, 251, 242, 0.96);
+  --search-surface: rgba(255, 250, 240, 0.96);
+  --hero-surface: linear-gradient(145deg, rgba(111, 70, 31, 0.96), rgba(153, 87, 40, 0.9));
+  --hero-text: #fff8eb;
+  --hero-subtle: rgba(255, 248, 235, 0.84);
+  --ambient-a: rgba(183, 110, 45, 0.18);
+  --ambient-b: rgba(94, 135, 103, 0.12);
+  --code-bg: #2a2118;
+  --code-ink: #fff3dd;
+  --code-border: rgba(255, 239, 206, 0.16);
+  --code-toolbar-bg: rgba(255, 248, 235, 0.06);
+  --control-border: rgba(143, 79, 36, 0.2);
+  --control-border-hover: rgba(143, 79, 36, 0.42);
+  --focus-ring: rgba(143, 79, 36, 0.24);
+  --item-border: rgba(143, 79, 36, 0.12);
+  --item-border-hover: rgba(143, 79, 36, 0.28);
+  --active-border: rgba(143, 79, 36, 0.44);
+  --inline-code-bg: rgba(143, 79, 36, 0.11);
+  --quote-bg: rgba(143, 79, 36, 0.07);
+  --quote-border: rgba(143, 79, 36, 0.3);
+  --token-comment: #b59b77;
+  --token-keyword: #7dc7e6;
+  --token-string: #c6e889;
+  --token-number: #ffd27a;
+  --token-function: #eec7ff;
+  --token-operator: #f1a06e;
+  --token-tag: #88d6ed;
+  --token-attr: #ffd27a;
+}
+
+:root[data-theme="ocean"] {
+  color-scheme: dark;
+  --bg: #071820;
+  --panel: rgba(9, 31, 42, 0.9);
+  --panel-strong: rgba(10, 39, 52, 0.96);
+  --ink: #e5f7fb;
+  --muted: #9ac1ca;
+  --accent: #63d7ff;
+  --accent-soft: rgba(99, 215, 255, 0.13);
+  --accent-strong: #cef5ff;
+  --warm: #8de0c4;
+  --line: rgba(178, 231, 244, 0.14);
+  --shadow: 0 26px 70px rgba(0, 8, 14, 0.5);
+  --bg-top: #0c2430;
+  --panel-solid: rgba(8, 27, 37, 0.96);
+  --search-surface: rgba(8, 31, 43, 0.96);
+  --hero-surface: linear-gradient(145deg, rgba(5, 61, 83, 0.96), rgba(6, 95, 120, 0.9));
+  --hero-text: #effcff;
+  --hero-subtle: rgba(239, 252, 255, 0.8);
+  --ambient-a: rgba(99, 215, 255, 0.13);
+  --ambient-b: rgba(141, 224, 196, 0.13);
+  --code-bg: #041016;
+  --code-ink: #e3fbff;
+  --code-border: rgba(178, 231, 244, 0.16);
+  --code-toolbar-bg: rgba(255, 255, 255, 0.04);
+  --control-border: rgba(99, 215, 255, 0.24);
+  --control-border-hover: rgba(99, 215, 255, 0.48);
+  --focus-ring: rgba(99, 215, 255, 0.24);
+  --item-border: rgba(99, 215, 255, 0.12);
+  --item-border-hover: rgba(99, 215, 255, 0.3);
+  --active-border: rgba(99, 215, 255, 0.46);
+  --inline-code-bg: rgba(99, 215, 255, 0.1);
+  --quote-bg: rgba(99, 215, 255, 0.07);
+  --quote-border: rgba(99, 215, 255, 0.3);
+}
+
+:root[data-theme="forest"] {
+  color-scheme: dark;
+  --bg: #0f180f;
+  --panel: rgba(20, 32, 20, 0.9);
+  --panel-strong: rgba(26, 39, 24, 0.96);
+  --ink: #eef7e8;
+  --muted: #adc2a4;
+  --accent: #8fd16a;
+  --accent-soft: rgba(143, 209, 106, 0.14);
+  --accent-strong: #ddffd0;
+  --warm: #d9b56f;
+  --line: rgba(222, 246, 210, 0.13);
+  --shadow: 0 26px 70px rgba(3, 10, 4, 0.52);
+  --bg-top: #182317;
+  --panel-solid: rgba(17, 28, 17, 0.96);
+  --search-surface: rgba(21, 35, 21, 0.96);
+  --hero-surface: linear-gradient(145deg, rgba(37, 77, 39, 0.96), rgba(75, 104, 41, 0.9));
+  --hero-text: #fbfff6;
+  --hero-subtle: rgba(251, 255, 246, 0.8);
+  --ambient-a: rgba(143, 209, 106, 0.13);
+  --ambient-b: rgba(217, 181, 111, 0.12);
+  --code-bg: #081108;
+  --code-ink: #effbe8;
+  --code-border: rgba(222, 246, 210, 0.16);
+  --code-toolbar-bg: rgba(255, 255, 255, 0.04);
+  --control-border: rgba(143, 209, 106, 0.24);
+  --control-border-hover: rgba(143, 209, 106, 0.48);
+  --focus-ring: rgba(143, 209, 106, 0.24);
+  --item-border: rgba(143, 209, 106, 0.12);
+  --item-border-hover: rgba(143, 209, 106, 0.3);
+  --active-border: rgba(143, 209, 106, 0.46);
+  --inline-code-bg: rgba(143, 209, 106, 0.1);
+  --quote-bg: rgba(143, 209, 106, 0.07);
+  --quote-border: rgba(143, 209, 106, 0.3);
 }
 
 * {
@@ -626,7 +821,7 @@ pre {
 
 .search-input {
   width: 100%;
-  border: 1px solid rgba(13, 109, 104, 0.15);
+  border: 1px solid var(--control-border);
   border-radius: 16px;
   padding: 13px 14px;
   font: inherit;
@@ -635,8 +830,8 @@ pre {
 }
 
 .search-input:focus {
-  outline: 2px solid rgba(13, 109, 104, 0.2);
-  border-color: rgba(13, 109, 104, 0.35);
+  outline: 2px solid var(--focus-ring);
+  border-color: var(--control-border-hover);
 }
 
 .search-hint,
@@ -662,7 +857,7 @@ pre {
   gap: 8px;
   padding: 14px;
   border-radius: 18px;
-  border: 1px solid rgba(13, 109, 104, 0.08);
+  border: 1px solid var(--item-border);
   background: var(--search-surface);
 }
 
@@ -685,7 +880,7 @@ pre {
   padding: 10px 12px;
   text-decoration: none;
   border-radius: 14px;
-  border: 1px solid rgba(13, 109, 104, 0.08);
+  border: 1px solid var(--item-border);
   background: var(--panel-solid);
   color: var(--muted);
   line-height: 1.55;
@@ -694,13 +889,13 @@ pre {
 
 .search-match:hover {
   transform: translateY(-1px);
-  border-color: rgba(13, 109, 104, 0.24);
+  border-color: var(--item-border-hover);
   box-shadow: 0 12px 25px rgba(12, 37, 39, 0.08);
   color: var(--ink);
 }
 
 .search-match.is-active {
-  border-color: rgba(13, 109, 104, 0.38);
+  border-color: var(--active-border);
   background: var(--accent-soft);
   color: var(--accent-strong);
   box-shadow: inset 3px 0 0 var(--accent);
@@ -736,7 +931,7 @@ mark {
 
 .theme-option,
 .font-option {
-  border: 1px solid rgba(13, 109, 104, 0.16);
+  border: 1px solid var(--control-border);
   background: var(--panel-solid);
   color: var(--ink);
   border-radius: 999px;
@@ -750,7 +945,7 @@ mark {
 .theme-option:hover,
 .font-option:hover {
   transform: translateY(-1px);
-  border-color: rgba(13, 109, 104, 0.35);
+  border-color: var(--control-border-hover);
 }
 
 .theme-option.is-active,
@@ -909,7 +1104,7 @@ mark {
 .page-body .code-block {
   margin: 1.1em 0;
   overflow: hidden;
-  border: 1px solid rgba(205, 232, 232, 0.12);
+  border: 1px solid var(--code-border);
   border-radius: 18px;
   background: var(--code-bg);
   color: var(--code-ink);
@@ -929,8 +1124,8 @@ mark {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(205, 232, 232, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--code-border);
+  background: var(--code-toolbar-bg);
 }
 
 .code-language {
@@ -964,50 +1159,50 @@ mark {
 }
 
 .token-comment {
-  color: #8ea6a5;
+  color: var(--token-comment);
   font-style: italic;
 }
 
 .token-keyword {
-  color: #86d7ff;
+  color: var(--token-keyword);
 }
 
 .token-string {
-  color: #b8e986;
+  color: var(--token-string);
 }
 
 .token-number {
-  color: #ffd479;
+  color: var(--token-number);
 }
 
 .token-function {
-  color: #f5c2ff;
+  color: var(--token-function);
 }
 
 .token-operator {
-  color: #ffb38a;
+  color: var(--token-operator);
 }
 
 .token-tag {
-  color: #8fdcff;
+  color: var(--token-tag);
 }
 
 .token-attr {
-  color: #ffd479;
+  color: var(--token-attr);
 }
 
 .page-body :not(pre) > code {
   padding: 0.18em 0.48em;
   border-radius: 8px;
-  background: rgba(16, 33, 35, 0.07);
+  background: var(--inline-code-bg);
 }
 
 .page-body blockquote {
   margin-left: 0;
   padding: 14px 18px;
-  border-left: 4px solid rgba(13, 109, 104, 0.25);
+  border-left: 4px solid var(--quote-border);
   border-radius: 0 16px 16px 0;
-  background: rgba(13, 109, 104, 0.04);
+  background: var(--quote-bg);
   color: var(--muted);
 }
 
@@ -1147,6 +1342,204 @@ mark {
   margin-bottom: 0;
 }
 
+.graph-page .page-body {
+  display: grid;
+  gap: 18px;
+}
+
+.graph-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(160px, 0.7fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.graph-control {
+  display: grid;
+  gap: 7px;
+}
+
+.graph-control span,
+.graph-types-label,
+.graph-detail-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.graph-input,
+.graph-select {
+  width: 100%;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  padding: 11px 12px;
+  font: inherit;
+  background: var(--panel-solid);
+  color: var(--ink);
+}
+
+.graph-input:focus,
+.graph-select:focus {
+  outline: 2px solid var(--focus-ring);
+  border-color: var(--control-border-hover);
+}
+
+.graph-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.graph-type-option {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--panel-solid);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.graph-type-option input {
+  accent-color: var(--accent);
+}
+
+.graph-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.6fr);
+  gap: 16px;
+}
+
+.graph-stage,
+.graph-detail {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-strong);
+}
+
+.graph-stage {
+  min-height: 520px;
+  overflow: hidden;
+}
+
+.graph-svg {
+  display: block;
+  width: 100%;
+  min-height: 520px;
+}
+
+.graph-edge {
+  stroke: var(--line);
+  stroke-width: 1.5;
+  opacity: 0.78;
+}
+
+.graph-edge.links_to {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+
+.graph-edge.has_tag {
+  stroke: var(--warm);
+}
+
+.graph-edge.about_topic {
+  stroke: var(--accent-strong);
+}
+
+.graph-edge.shared_tag,
+.graph-edge.same_section {
+  stroke-dasharray: 5 5;
+}
+
+.graph-node {
+  cursor: pointer;
+}
+
+.graph-node circle {
+  stroke: var(--line);
+  stroke-width: 2;
+  fill: var(--panel-solid);
+  transition: transform 160ms ease, stroke 160ms ease, fill 160ms ease;
+}
+
+.graph-node:hover circle,
+.graph-node.is-selected circle {
+  stroke: var(--accent);
+  fill: var(--accent-soft);
+}
+
+.graph-node.document circle {
+  fill: var(--accent);
+}
+
+.graph-node.tag circle {
+  fill: var(--warm);
+}
+
+.graph-node.topic circle {
+  fill: var(--panel-solid);
+}
+
+.graph-node text {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--panel-solid);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.graph-detail {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  align-self: start;
+}
+
+.graph-detail-title {
+  margin: 0;
+  color: var(--accent-strong);
+}
+
+.graph-detail-body {
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.graph-detail-body a {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.graph-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.graph-tag-chip {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.graph-status {
+  color: var(--muted);
+  margin: 0;
+}
+
 @media (min-width: 1181px) {
   html,
   body {
@@ -1249,6 +1642,19 @@ mark {
   .pager-link.align-right {
     text-align: left;
   }
+
+  .graph-controls,
+  .graph-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .graph-stage {
+    min-height: 420px;
+  }
+
+  .graph-svg {
+    min-height: 420px;
+  }
 }
 
 	.archive-section {
@@ -1302,24 +1708,22 @@ const THEME_SCRIPT: &str = r#"
 (() => {
   const storageKey = "minizensical-theme-choice";
   const root = document.documentElement;
-  const buttons = Array.from(document.querySelectorAll("[data-theme-choice]"));
+  const buttons = Array.from(document.querySelectorAll("button[data-theme-choice]"));
   const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const themeChoices = new Set(["light", "dark", "system", "sepia", "ocean", "forest"]);
 
   const normalizeChoice = (value) => {
-    if (value === "light" || value === "dark") {
+    if (themeChoices.has(value)) {
       return value;
     }
     return "system";
   };
 
   const resolveTheme = (choice) => {
-    if (choice === "dark") {
-      return "dark";
+    if (choice === "system") {
+      return media.matches ? "dark" : "light";
     }
-    if (choice === "light") {
-      return "light";
-    }
-    return media.matches ? "dark" : "light";
+    return choice;
   };
 
   const applyChoice = (rawChoice) => {
@@ -1382,11 +1786,12 @@ fn theme_boot_script() -> &'static str {
   const storageKey = "minizensical-theme-choice";
   const root = document.documentElement;
   const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const themeChoices = new Set(["light", "dark", "system", "sepia", "ocean", "forest"]);
 
   let choice = "system";
   try {
     const stored = window.localStorage.getItem(storageKey);
-    if (stored === "light" || stored === "dark") {
+    if (themeChoices.has(stored)) {
       choice = stored;
     }
   } catch (_error) {
@@ -1847,6 +2252,276 @@ const SEARCH_SCRIPT: &str = r##"
 })();
 "##;
 
+const GRAPH_SCRIPT: &str = r##"
+(() => {
+  const svg = document.getElementById("knowledge-graph");
+  const status = document.getElementById("graph-status");
+  const queryInput = document.getElementById("graph-filter");
+  const tagSelect = document.getElementById("graph-tag-filter");
+  const typeInputs = Array.from(document.querySelectorAll("[data-graph-type]"));
+  const detailTitle = document.getElementById("graph-detail-title");
+  const detailBody = document.getElementById("graph-detail-body");
+
+  if (!svg || !status || !queryInput || !tagSelect || !detailTitle || !detailBody) {
+    return;
+  }
+
+  const { graphJson: graphJsonHref = "", siteHome: siteHomeHref = "" } = document.body.dataset;
+  const graphUrl = new URL(graphJsonHref, window.location.href);
+  const siteRootUrl = new URL(siteHomeHref || ".", window.location.href);
+  const svgNs = "http://www.w3.org/2000/svg";
+  let graph = { nodes: [], edges: [] };
+  let selectedNodeId = "";
+
+  const escapeHtml = (value) =>
+    String(value || "").replace(/[&<>\"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;"
+    })[character]);
+
+  const trimLabel = (value, length = 24) => {
+    const text = String(value || "");
+    return text.length > length ? text.slice(0, length - 1) + "..." : text;
+  };
+
+  const nodeSearchText = (node) =>
+    [
+      node.label,
+      node.summary,
+      node.source,
+      node.type,
+      ...(node.tags || [])
+    ].filter(Boolean).join(" ").toLowerCase();
+
+  const selectedTypes = () =>
+    new Set(typeInputs.filter((input) => input.checked).map((input) => input.dataset.graphType));
+
+  const connectedDocumentIdsForTag = (tag) => {
+    if (!tag) {
+      return new Set();
+    }
+    return new Set(
+      graph.nodes
+        .filter((node) => node.type === "document" && (node.tags || []).includes(tag))
+        .map((node) => node.id)
+    );
+  };
+
+  const nodeMatchesTag = (node, tag, connectedDocuments) => {
+    if (!tag) {
+      return true;
+    }
+    if (node.type === "tag") {
+      return node.label === tag;
+    }
+    if (node.type === "document") {
+      return (node.tags || []).includes(tag);
+    }
+    return graph.edges.some((edge) =>
+      edge.type === "about_topic"
+      && edge.target === node.id
+      && connectedDocuments.has(edge.source)
+    );
+  };
+
+  const filteredGraph = () => {
+    const query = queryInput.value.trim().toLowerCase();
+    const tag = tagSelect.value;
+    const types = selectedTypes();
+    const connectedDocuments = connectedDocumentIdsForTag(tag);
+    const nodes = graph.nodes.filter((node) => {
+      const matchesType = types.has(node.type);
+      const matchesQuery = !query || nodeSearchText(node).includes(query);
+      return matchesType && matchesQuery && nodeMatchesTag(node, tag, connectedDocuments);
+    });
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    const edges = graph.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+    return { nodes, edges };
+  };
+
+  const nodeRadius = (node) => {
+    if (node.type === "document") {
+      return 15;
+    }
+    if (node.type === "tag") {
+      return 12;
+    }
+    return 10;
+  };
+
+  const layoutNodes = (nodes) => {
+    const width = 900;
+    const height = 520;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = nodes.length > 12 ? 210 : 180;
+    return new Map(nodes.map((node, index) => {
+      const angle = nodes.length === 1 ? -Math.PI / 2 : (Math.PI * 2 * index / nodes.length) - Math.PI / 2;
+      return [
+        node.id,
+        {
+          node,
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        }
+      ];
+    }));
+  };
+
+  const appendSvg = (name, attributes, parent = svg) => {
+    const element = document.createElementNS(svgNs, name);
+    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+    parent.appendChild(element);
+    return element;
+  };
+
+  const documentUrl = (node) => new URL(node.url || "", siteRootUrl).toString();
+
+  const renderDetail = (node) => {
+    if (!node) {
+      detailTitle.textContent = "Select a node";
+      detailBody.innerHTML = "<p>Choose a document, tag, or topic from the graph to inspect its metadata and relationships.</p>";
+      return;
+    }
+
+    detailTitle.textContent = node.label || node.id;
+    const tags = (node.tags || []).map((tag) => '<span class="graph-tag-chip">' + escapeHtml(tag) + "</span>").join("");
+    const url = node.url ? documentUrl(node) : "";
+    detailBody.innerHTML = [
+      '<p><span class="graph-detail-label">Type</span><br>' + escapeHtml(node.type) + '</p>',
+      node.summary ? '<p><span class="graph-detail-label">Summary</span><br>' + escapeHtml(node.summary) + '</p>' : "",
+      node.source ? '<p><span class="graph-detail-label">Source</span><br>' + escapeHtml(node.source) + '</p>' : "",
+      tags ? '<div><span class="graph-detail-label">Tags</span><div class="graph-tag-list">' + tags + '</div></div>' : "",
+      url && node.type === "document" ? '<p><a href="' + escapeHtml(url) + '">Open document</a></p>' : ""
+    ].join("");
+  };
+
+  const render = () => {
+    const { nodes, edges } = filteredGraph();
+    const positions = layoutNodes(nodes);
+    const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId);
+    svg.innerHTML = "";
+    svg.setAttribute("viewBox", "0 0 900 520");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+    edges.forEach((edge) => {
+      const source = positions.get(edge.source);
+      const target = positions.get(edge.target);
+      if (!source || !target) {
+        return;
+      }
+      appendSvg("line", {
+        class: "graph-edge " + edge.type,
+        x1: source.x,
+        y1: source.y,
+        x2: target.x,
+        y2: target.y,
+        "stroke-width": Math.max(1, Math.min(4, Number(edge.weight) || 1))
+      });
+    });
+
+    nodes.forEach((node) => {
+      const position = positions.get(node.id);
+      const group = appendSvg("g", {
+        class: "graph-node " + node.type + (node.id === selectedNodeId ? " is-selected" : ""),
+        tabindex: "0",
+        role: "button",
+        "aria-label": node.label || node.id,
+        transform: "translate(" + position.x + " " + position.y + ")"
+      });
+      appendSvg("circle", { r: nodeRadius(node) }, group);
+      appendSvg("text", { x: 0, y: nodeRadius(node) + 17, "text-anchor": "middle" }, group)
+        .textContent = trimLabel(node.label || node.id);
+
+      const activate = () => {
+        selectedNodeId = node.id;
+        renderDetail(node);
+        if (node.type === "document" && node.url) {
+          window.location.href = documentUrl(node);
+          return;
+        }
+        if (node.type === "tag") {
+          tagSelect.value = node.label || "";
+        }
+        if (node.type === "topic") {
+          queryInput.value = node.label || "";
+        }
+        render();
+      };
+
+      group.addEventListener("click", activate);
+      group.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+
+    if (!nodes.length) {
+      appendSvg("text", { x: 450, y: 260, "text-anchor": "middle", class: "graph-empty" })
+        .textContent = "No matching nodes.";
+    }
+
+    if (!selectedNode || !positions.has(selectedNode.id)) {
+      selectedNodeId = "";
+      renderDetail(null);
+    }
+    status.textContent = nodes.length + " node(s), " + edges.length + " edge(s) visible.";
+  };
+
+  const populateTagFilter = () => {
+    const tags = Array.from(new Set(
+      graph.nodes
+        .filter((node) => node.type === "tag")
+        .map((node) => node.label)
+        .filter(Boolean)
+    )).sort((left, right) => left.localeCompare(right));
+
+    tagSelect.innerHTML = '<option value="">All tags</option>' + tags.map((tag) =>
+      '<option value="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</option>'
+    ).join("");
+
+    const params = new URL(window.location.href).searchParams;
+    const initialTag = params.get("tag");
+    if (initialTag && tags.includes(initialTag)) {
+      tagSelect.value = initialTag;
+    }
+    const initialTopic = params.get("topic");
+    if (initialTopic) {
+      queryInput.value = initialTopic;
+    }
+  };
+
+  queryInput.addEventListener("input", render);
+  tagSelect.addEventListener("change", render);
+  typeInputs.forEach((input) => input.addEventListener("change", render));
+
+  status.textContent = "Loading the knowledge graph...";
+  fetch(graphUrl, { cache: "no-store" })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Failed to load graph: " + response.status);
+      }
+      return response.json();
+    })
+    .then((data) => {
+      graph = {
+        nodes: Array.isArray(data.nodes) ? data.nodes : [],
+        edges: Array.isArray(data.edges) ? data.edges : []
+      };
+      populateTagFilter();
+      render();
+    })
+    .catch(() => {
+      status.textContent = "Knowledge graph could not be loaded. Use 'cargo run -- serve' or deploy the built site through HTTP.";
+    });
+})();
+"##;
+
 const CODE_SCRIPT: &str = r##"
 (() => {
   const root = document.documentElement;
@@ -2127,6 +2802,131 @@ const MATH_SCRIPT: &str = r#"
 })();
 "#;
 
+const KNOWLEDGE_GRAPH_TEMPLATE: &str = r##"
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <meta name="description" content="{{ description }}">
+  <script>{{ theme_boot_script | safe }}</script>
+  <link rel="stylesheet" href="{{ stylesheet_href }}">
+</head>
+<body data-search-index="{{ search_index_href }}" data-site-home="{{ home_href }}" data-graph-json="{{ graph_json_href | safe }}">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="{{ home_href }}">
+        <span class="brand-mark">MZ</span>
+        <span class="brand-copy">
+          <strong>{{ site_name }}</strong>
+          <span>Rust static docs with course-ready polish</span>
+        </span>
+      </a>
+
+      <section class="search-panel">
+  <label class="search-label" for="doc-search">Search docs</label>
+  <input id="doc-search" class="search-input" type="search" placeholder="Search titles, headings, and content">
+  <p class="search-hint">Try keywords like <code>front matter</code>, <code>search</code>, or <code>architecture</code>.</p>
+  <div id="search-status" class="search-status">Search is ready as soon as the page loads.</div>
+  <div id="search-results" class="search-results" hidden></div>
+</section>
+
+      <section class="theme-panel">
+        <p class="theme-label">Theme</p>
+        <div class="theme-toggle" data-theme-switcher>
+          <button type="button" class="theme-option" data-theme-choice="light">Light</button>
+          <button type="button" class="theme-option" data-theme-choice="dark">Dark</button>
+          <button type="button" class="theme-option" data-theme-choice="system">System</button>
+          <button type="button" class="theme-option" data-theme-choice="sepia">Sepia</button>
+          <button type="button" class="theme-option" data-theme-choice="ocean">Ocean</button>
+          <button type="button" class="theme-option" data-theme-choice="forest">Forest</button>
+        </div>
+        <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
+      </section>
+
+      <section class="font-panel">
+        <p class="font-label">Font</p>
+        <div class="font-toggle" data-font-switcher>
+          {% for font in font_options %}
+          <button type="button" class="font-option" data-font-value="{{ font.css_value }}">{{ font.label }}</button>
+          {% endfor %}
+        </div>
+        <p class="font-hint">Fonts placed in <code>docs/assets/fonts/</code> are added to this switcher after build.</p>
+      </section>
+
+      <div class="nav-shell">
+        {{ nav_html | safe }}
+      </div>
+    </aside>
+
+    <main class="content">
+      <article class="page graph-page">
+        <header class="page-header">
+          <p class="eyebrow">Knowledge Graph</p>
+          <h1>Knowledge Graph</h1>
+          <p class="page-summary">{{ description }}</p>
+        </header>
+
+        <div class="page-body">
+          <section class="graph-controls" aria-label="Knowledge graph filters">
+            <label class="graph-control" for="graph-filter">
+              <span>Filter</span>
+              <input id="graph-filter" class="graph-input" type="search" placeholder="Search nodes, tags, topics, and sources">
+            </label>
+            <label class="graph-control" for="graph-tag-filter">
+              <span>Tag</span>
+              <select id="graph-tag-filter" class="graph-select">
+                <option value="">All tags</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="graph-types" aria-label="Visible node types">
+            <span class="graph-types-label">Types</span>
+            <label class="graph-type-option">
+              <input type="checkbox" data-graph-type="document" checked>
+              Documents
+            </label>
+            <label class="graph-type-option">
+              <input type="checkbox" data-graph-type="tag" checked>
+              Tags
+            </label>
+            <label class="graph-type-option">
+              <input type="checkbox" data-graph-type="topic" checked>
+              Topics
+            </label>
+          </section>
+
+          <p id="graph-status" class="graph-status">Loading the knowledge graph...</p>
+
+          <section class="graph-layout">
+            <div class="graph-stage">
+              <svg id="knowledge-graph" class="graph-svg" role="img" aria-label="Knowledge graph"></svg>
+            </div>
+            <aside class="graph-detail" aria-label="Node details">
+              <p class="graph-detail-label">Details</p>
+              <h2 id="graph-detail-title" class="graph-detail-title">Select a node</h2>
+              <div id="graph-detail-body" class="graph-detail-body">
+                <p>Choose a document, tag, or topic from the graph to inspect its metadata and relationships.</p>
+              </div>
+            </aside>
+          </section>
+        </div>
+      </article>
+    </main>
+  </div>
+
+  <script src="{{ theme_script_href }}"></script>
+  <script src="{{ code_script_href }}"></script>
+  <script src="{{ search_script_href }}"></script>
+  <script src="{{ graph_script_href }}"></script>
+</body>
+</html>
+"##;
+
 const ARCHIVE_TEMPLATE: &str = r##"
 <!doctype html>
 <html lang="en">
@@ -2162,9 +2962,12 @@ const ARCHIVE_TEMPLATE: &str = r##"
       <section class="theme-panel">
         <p class="theme-label">Theme</p>
         <div class="theme-toggle" data-theme-switcher>
-          <button type="button" class="theme-option" data-theme-choice="light">Day</button>
-          <button type="button" class="theme-option" data-theme-choice="dark">Night</button>
+          <button type="button" class="theme-option" data-theme-choice="light">Light</button>
+          <button type="button" class="theme-option" data-theme-choice="dark">Dark</button>
           <button type="button" class="theme-option" data-theme-choice="system">System</button>
+          <button type="button" class="theme-option" data-theme-choice="sepia">Sepia</button>
+          <button type="button" class="theme-option" data-theme-choice="ocean">Ocean</button>
+          <button type="button" class="theme-option" data-theme-choice="forest">Forest</button>
         </div>
         <p class="theme-hint">The theme choice is saved in your browser and follows system preference in <code>System</code> mode.</p>
       </section>
