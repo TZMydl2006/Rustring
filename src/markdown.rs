@@ -13,6 +13,7 @@ pub struct RenderedMarkdown {
     pub plain_text: String,
     pub headings: Vec<Heading>,
     pub search_blocks: Vec<SearchBlock>,
+    pub links: Vec<MarkdownLink>,
     pub metadata: PageMetadata,
 }
 
@@ -30,6 +31,12 @@ pub struct SearchBlock {
     pub text: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct MarkdownLink {
+    pub destination: String,
+    pub title: Option<String>,
+}
+
 pub fn render_markdown(
     markdown: &str,
     source_path: &Path,
@@ -40,6 +47,7 @@ pub fn render_markdown(
     let normalized_body = normalize_display_math_blocks(body);
     let body = normalized_body.as_str();
     let headings = extract_headings(body);
+    let links = extract_links(body);
     let (body_search_blocks, search_targets) = extract_body_search_blocks(body);
 
     let mut html_output = String::new();
@@ -82,8 +90,27 @@ pub fn render_markdown(
         plain_text,
         headings,
         search_blocks,
+        links,
         metadata,
     })
+}
+
+fn extract_links(markdown: &str) -> Vec<MarkdownLink> {
+    Parser::new_ext(markdown, options())
+        .filter_map(|event| match event {
+            Event::Start(Tag::Link {
+                dest_url, title, ..
+            }) => Some(MarkdownLink {
+                destination: dest_url.to_string(),
+                title: if title.is_empty() {
+                    None
+                } else {
+                    Some(title.to_string())
+                },
+            }),
+            _ => None,
+        })
+        .collect()
 }
 
 fn normalize_math_events<'a>(events: Vec<Event<'a>>) -> Vec<Event<'a>> {
@@ -804,6 +831,30 @@ Body text.
                 && block.id.starts_with("mz-search-block-")
                 && block.text.contains("Welcome to docs.")
         }));
+    }
+
+    #[test]
+    fn extracts_markdown_links_from_parser_events() {
+        let rendered = render_markdown(
+            "# Links\n\n[Setup](guide/setup.md \"setup\") and [external](https://example.com).\n\n![image](image.png)\n",
+            Path::new("docs/index.md"),
+            Path::new("index.md"),
+            Path::new("index.html"),
+        )
+        .unwrap();
+
+        let destinations = rendered
+            .links
+            .iter()
+            .map(|link| (link.destination.as_str(), link.title.as_deref()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            destinations,
+            vec![
+                ("guide/setup.md", Some("setup")),
+                ("https://example.com", None)
+            ]
+        );
     }
 
     #[test]

@@ -38,9 +38,17 @@ site_name = "Test Docs"
     assert!(html.contains("minizensical-search.js"));
     assert!(html.contains("minizensical-code.js"));
     assert!(html.contains("minizensical-math.js"));
+    assert!(html.contains("Knowledge Graph"));
     assert!(html.contains("data-font-switcher"));
     assert!(html.contains("Demo Sans"));
     assert!(temp_dir.path().join("site/search.json").exists());
+    assert!(temp_dir.path().join("site/graph.json").exists());
+    assert!(
+        temp_dir
+            .path()
+            .join("site/knowledge-graph/index.html")
+            .exists()
+    );
     assert!(
         temp_dir
             .path()
@@ -59,6 +67,12 @@ site_name = "Test Docs"
             .join("site/assets/minizensical-math.js")
             .exists()
     );
+    assert!(
+        temp_dir
+            .path()
+            .join("site/assets/minizensical-graph.js")
+            .exists()
+    );
     let search_js =
         fs::read_to_string(temp_dir.path().join("site/assets/minizensical-search.js")).unwrap();
     assert!(search_js.contains("mz-search"));
@@ -74,10 +88,145 @@ site_name = "Test Docs"
     let css = fs::read_to_string(temp_dir.path().join("site/assets/minizensical.css")).unwrap();
     assert!(css.contains("@font-face"));
     assert!(css.contains("fonts/demo-sans.woff2"));
+    assert!(css.contains(r#":root[data-theme="sepia"]"#));
+    assert!(css.contains(r#":root[data-theme="ocean"]"#));
+    assert!(css.contains(r#":root[data-theme="forest"]"#));
+    assert!(css.contains(".graph-stage"));
     assert!(css.contains(".search-match.is-active"));
     assert!(css.contains(".math-inline"));
     assert!(css.contains("white-space: nowrap"));
     assert!(css.contains("text-align: center !important"));
+
+    let theme_js =
+        fs::read_to_string(temp_dir.path().join("site/assets/minizensical-theme.js")).unwrap();
+    assert!(theme_js.contains("sepia"));
+    assert!(theme_js.contains("ocean"));
+    assert!(theme_js.contains("forest"));
+
+    let graph_js =
+        fs::read_to_string(temp_dir.path().join("site/assets/minizensical-graph.js")).unwrap();
+    assert!(graph_js.contains("graphJson"));
+    assert!(graph_js.contains("knowledge-graph"));
+    assert!(graph_js.contains("data-graph-type"));
+}
+
+#[test]
+fn builds_knowledge_graph_json_page_and_relationships() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    write_file(
+        temp_dir.path().join("zensical.toml"),
+        r#"
+[project]
+site_name = "Graph Docs"
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/index.md"),
+        r#"---
+title: Home
+summary: Root summary.
+tags:
+  - rust
+  - graph
+---
+# Home
+
+## Overview
+
+Read [Setup](guide/setup.md "setup link") for the implementation notes.
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/setup.md"),
+        r#"---
+title: Setup
+tags:
+  - rust
+  - guide
+---
+# Setup
+
+## Parser Notes
+"#,
+    );
+    write_file(
+        temp_dir.path().join("docs/guide/extra.md"),
+        r#"---
+title: Extra
+tags:
+  - guide
+---
+# Extra
+"#,
+    );
+
+    let config = Config::load(temp_dir.path().join("zensical.toml")).unwrap();
+    build_site(&config).unwrap();
+
+    let graph_json = fs::read_to_string(temp_dir.path().join("site/graph.json")).unwrap();
+    let graph: Value = serde_json::from_str(&graph_json).unwrap();
+    let nodes = graph["nodes"].as_array().unwrap();
+    let edges = graph["edges"].as_array().unwrap();
+
+    assert_eq!(graph["version"], 1);
+    assert!(nodes.iter().any(|node| {
+        node["id"] == "doc:index.md"
+            && node["type"] == "document"
+            && node["label"] == "Home"
+            && node["url"] == ""
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["id"] == "doc:guide/setup.md"
+            && node["type"] == "document"
+            && node["url"] == "guide/setup/"
+    }));
+    assert!(
+        nodes
+            .iter()
+            .any(|node| { node["type"] == "tag" && node["label"] == "rust" })
+    );
+    assert!(
+        nodes
+            .iter()
+            .any(|node| { node["type"] == "topic" && node["label"] == "Overview" })
+    );
+
+    assert!(edge_exists(edges, "doc:index.md", "tag:rust", "has_tag"));
+    assert!(edge_exists(
+        edges,
+        "doc:index.md",
+        "doc:guide/setup.md",
+        "links_to"
+    ));
+    assert!(edge_exists(
+        edges,
+        "doc:index.md",
+        "topic:overview",
+        "about_topic"
+    ));
+    assert!(edge_exists_unordered(
+        edges,
+        "doc:index.md",
+        "doc:guide/setup.md",
+        "shared_tag"
+    ));
+    assert!(edge_exists_unordered(
+        edges,
+        "doc:guide/setup.md",
+        "doc:guide/extra.md",
+        "same_section"
+    ));
+
+    let graph_html =
+        fs::read_to_string(temp_dir.path().join("site/knowledge-graph/index.html")).unwrap();
+    assert!(graph_html.contains("data-graph-json=\"../graph.json\""));
+    assert!(graph_html.contains("id=\"knowledge-graph\""));
+    assert!(graph_html.contains("id=\"graph-filter\""));
+    assert!(graph_html.contains("data-graph-type=\"document\""));
+    assert!(graph_html.contains("minizensical-graph.js"));
+
+    let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(home_html.contains("Knowledge Graph"));
 }
 
 #[test]
@@ -599,4 +748,14 @@ fn write_file(path: impl AsRef<Path>, contents: &str) {
 fn nav_position(html: &str, needle: &str) -> usize {
     html.find(needle)
         .unwrap_or_else(|| panic!("missing navigation item: {needle}"))
+}
+
+fn edge_exists(edges: &[Value], source: &str, target: &str, edge_type: &str) -> bool {
+    edges.iter().any(|edge| {
+        edge["source"] == source && edge["target"] == target && edge["type"] == edge_type
+    })
+}
+
+fn edge_exists_unordered(edges: &[Value], left: &str, right: &str, edge_type: &str) -> bool {
+    edge_exists(edges, left, right, edge_type) || edge_exists(edges, right, left, edge_type)
 }

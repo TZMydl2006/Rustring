@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
-use crate::markdown::{SearchBlock, render_markdown};
+use crate::markdown::{MarkdownLink, SearchBlock, render_markdown};
 use crate::scanner::{SourceFile, is_index_markdown, normalize_path, titleize};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -38,6 +38,7 @@ pub struct Page {
     pub plain_text: String,
     pub search_headings: Vec<String>,
     pub search_blocks: Vec<SearchBlock>,
+    pub links: Vec<MarkdownLink>,
     pub canonical_url: Option<String>,
     pub is_home: bool,
 }
@@ -100,6 +101,7 @@ impl Page {
                 .map(|heading| heading.title)
                 .collect(),
             search_blocks,
+            links: rendered.links,
             canonical_url,
             is_home: is_root_index_page(&source.relative_path),
         })

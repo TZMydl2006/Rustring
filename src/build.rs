@@ -1,12 +1,14 @@
 use crate::config::Config;
 use crate::error::{MiniZensicalError, Result};
+use crate::graph::{Graph, build_knowledge_graph, graph_json_path};
 use crate::nav::{NavItem, Navigation, PageLink, RenderNavItem, relative_href};
 use crate::page::Page;
 use crate::render::{
     ArchiveGroup, ArchiveSection, FontOption, code_script_contents, code_script_path,
-    default_font_options, math_script_contents, math_script_path, render_archive_index,
-    render_page, render_tag_archive, search_script_contents, search_script_path,
-    stylesheet_contents, stylesheet_path, theme_script_contents, theme_script_path,
+    default_font_options, graph_script_contents, graph_script_path, math_script_contents,
+    math_script_path, render_archive_index, render_knowledge_graph_page, render_page,
+    render_tag_archive, search_script_contents, search_script_path, stylesheet_contents,
+    stylesheet_path, theme_script_contents, theme_script_path,
 };
 use crate::scanner::{SourceFile, scan_site, titleize};
 use crate::search::{build_search_index, search_index_path};
@@ -95,54 +97,105 @@ fn build_site_contents(config: &Config) -> Result<()> {
             ),
         ],
     });
+    navigation.items.push(NavItem::page(
+        "Knowledge Graph".to_string(),
+        String::new(),
+        Path::new("knowledge-graph/index.html").to_path_buf(),
+    ));
     write_theme_assets(config, &font_options)?;
 
     let archive_page_path = Path::new("archive/index.html");
     let tag_page_path = Path::new("archive/tags/index.html");
+    let knowledge_graph_page_path = Path::new("knowledge-graph/index.html");
     let archive_sections = build_date_archive(&pages, archive_page_path);
     let tag_sections = build_tag_archive(&pages, tag_page_path);
+    let graph = build_knowledge_graph(&pages, config.project.use_directory_urls);
 
     // Build nav items for archive pages.
     // Archive pages live at archive/index.html and archive/tags/index.html.
-    let archive_nav = vec![RenderNavItem {
-        title: "Archive".to_string(),
-        href: None,
-        children: vec![
-            RenderNavItem {
-                title: "By Date".to_string(),
-                href: Some("index.html".to_string()),
-                active: true,
-                children: vec![],
-            },
-            RenderNavItem {
-                title: "By Tags".to_string(),
-                href: Some("tags/index.html".to_string()),
-                active: false,
-                children: vec![],
-            },
-        ],
-        active: true,
-    }];
+    let archive_nav = vec![
+        RenderNavItem {
+            title: "Archive".to_string(),
+            href: None,
+            children: vec![
+                RenderNavItem {
+                    title: "By Date".to_string(),
+                    href: Some("index.html".to_string()),
+                    active: true,
+                    children: vec![],
+                },
+                RenderNavItem {
+                    title: "By Tags".to_string(),
+                    href: Some("tags/index.html".to_string()),
+                    active: false,
+                    children: vec![],
+                },
+            ],
+            active: true,
+        },
+        RenderNavItem {
+            title: "Knowledge Graph".to_string(),
+            href: Some("../knowledge-graph/index.html".to_string()),
+            active: false,
+            children: vec![],
+        },
+    ];
 
-    let tag_nav = vec![RenderNavItem {
-        title: "Archive".to_string(),
-        href: None,
-        children: vec![
-            RenderNavItem {
-                title: "By Date".to_string(),
-                href: Some("../index.html".to_string()),
-                active: false,
-                children: vec![],
-            },
-            RenderNavItem {
-                title: "By Tags".to_string(),
-                href: Some("index.html".to_string()),
-                active: true,
-                children: vec![],
-            },
-        ],
-        active: true,
-    }];
+    let tag_nav = vec![
+        RenderNavItem {
+            title: "Archive".to_string(),
+            href: None,
+            children: vec![
+                RenderNavItem {
+                    title: "By Date".to_string(),
+                    href: Some("../index.html".to_string()),
+                    active: false,
+                    children: vec![],
+                },
+                RenderNavItem {
+                    title: "By Tags".to_string(),
+                    href: Some("index.html".to_string()),
+                    active: true,
+                    children: vec![],
+                },
+            ],
+            active: true,
+        },
+        RenderNavItem {
+            title: "Knowledge Graph".to_string(),
+            href: Some("../../knowledge-graph/index.html".to_string()),
+            active: false,
+            children: vec![],
+        },
+    ];
+
+    let graph_nav = vec![
+        RenderNavItem {
+            title: "Archive".to_string(),
+            href: None,
+            active: false,
+            children: vec![
+                RenderNavItem {
+                    title: "By Date".to_string(),
+                    href: Some("../archive/index.html".to_string()),
+                    active: false,
+                    children: vec![],
+                },
+                RenderNavItem {
+                    title: "By Tags".to_string(),
+                    href: Some("../archive/tags/index.html".to_string()),
+                    active: false,
+                    children: vec![],
+                },
+            ],
+        },
+        RenderNavItem {
+            title: "Knowledge Graph".to_string(),
+            href: Some("index.html".to_string()),
+            active: true,
+            children: vec![],
+        },
+    ];
 
     // Render archive pages
     let archive_html =
@@ -151,6 +204,10 @@ fn build_site_contents(config: &Config) -> Result<()> {
 
     let tag_html = render_tag_archive(config, &tag_sections, &tag_nav, &font_options)?;
     write_archive_page(config, tag_page_path, &tag_html)?;
+
+    write_graph_json(config, &graph)?;
+    let graph_html = render_knowledge_graph_page(config, &graph_nav, &font_options)?;
+    write_archive_page(config, knowledge_graph_page_path, &graph_html)?;
 
     write_search_index(config, &pages)?;
     render_pages(config, &pages, &navigation, &font_options)?;
@@ -348,6 +405,11 @@ fn write_theme_assets(config: &Config, font_options: &[FontOption]) -> Result<()
         math_script_path(),
         math_script_contents().as_bytes(),
     )?;
+    write_asset(
+        config,
+        graph_script_path(),
+        graph_script_contents().as_bytes(),
+    )?;
     Ok(())
 }
 
@@ -365,6 +427,16 @@ fn write_search_index(config: &Config, pages: &[Page]) -> Result<()> {
     let index = build_search_index(pages, config.project.use_directory_urls);
     let contents =
         serde_json::to_vec_pretty(&index).map_err(|source| MiniZensicalError::SerializeSearch {
+            path: path.clone(),
+            source,
+        })?;
+    fs::write(&path, contents).map_err(|error| MiniZensicalError::io("write", &path, error))
+}
+
+fn write_graph_json(config: &Config, graph: &Graph) -> Result<()> {
+    let path = config.site_path_for(graph_json_path());
+    let contents =
+        serde_json::to_vec_pretty(graph).map_err(|source| MiniZensicalError::SerializeGraph {
             path: path.clone(),
             source,
         })?;
