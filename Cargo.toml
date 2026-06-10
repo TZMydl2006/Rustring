@@ -16,5 +16,9 @@ thiserror = "2.0"
 toml = "0.8"
 walkdir = "2.5"
 
+[[bin]]
+name = "rustring"
+path = "src/main.rs"
+
 [dev-dependencies]
 tempfile = "3.20"

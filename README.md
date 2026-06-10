@@ -483,42 +483,54 @@ $$
 
 ## 7. 如何快速跑起来
 
-### 步骤 1：进入项目目录
+### 方式一：使用命令行工具（推荐）
+
+如果你已经拿到了 `rustring.exe`，可以直接使用：
+
+#### 步骤 1：初始化项目
 
 ```bash
-cd /Users/wangyilin/Downloads/西交/Rust程序设计/RustProject/minizensical
+rustring init
 ```
 
-### 步骤 2：看一下默认配置
+这会生成默认的 `zensical.toml` 和 `docs/index.md`。
 
-根目录的 `zensical.toml` 当前示例非常简单：
+#### 步骤 2：看一下默认配置
+
+生成的 `zensical.toml` 内容如下：
 
 ```toml
 [project]
-site_name = "MiniZensical Course Showcase"
+site_name = "My Documentation Site"
 docs_dir = "docs"
 site_dir = "site"
 use_directory_urls = true
 ```
 
-这里没有写 `nav`，表示使用自动导航。
+你可以根据需要编辑它：
+- `site_name`：站点名称，会显示在侧边栏和页面标题里
+- `docs_dir`：文档源目录，默认 `docs`
+- `site_dir`：构建输出目录，默认 `site`
+- `use_directory_urls`：设为 `true` 时使用目录风格 URL（如 `guide/setup/`），`false` 时使用 `.html` 后缀
+- `site_url`：可选，用于生成 canonical URL
+- `nav`：可选，显式定义导航结构；不写则使用自动导航
 
-### 步骤 3：生成站点
+#### 步骤 3：生成站点
 
 ```bash
-cargo run -- build
+rustring build
 ```
 
 如果想手动指定配置文件：
 
 ```bash
-cargo run -- build --config zensical.toml
+rustring build --config zensical.toml
 ```
 
-### 步骤 4：本地预览
+#### 步骤 4：本地预览
 
 ```bash
-cargo run -- serve
+rustring serve
 ```
 
 默认地址：
@@ -530,10 +542,60 @@ http://127.0.0.1:3000
 自定义地址：
 
 ```bash
-cargo run -- serve --addr 127.0.0.1:4000
+rustring serve --addr 127.0.0.1:4000
 ```
 
-### 步骤 5：看生成结果
+#### 步骤 5：看生成结果
+
+构建完成后可以直接打开：
+
+```text
+site/index.html
+```
+
+但如果你要体验搜索，推荐使用 `serve`，因为浏览器对本地 `file://` 的 JSON 读取限制比较多。
+
+### 方式二：用 Cargo 开发运行
+
+如果你有 Rust 开发环境，也可以从源码运行：
+
+#### 步骤 1：进入项目目录
+
+```bash
+cd Rustring
+```
+
+#### 步骤 2：查看版本
+
+```bash
+rustring --version
+```
+
+#### 步骤 3：初始化项目（或直接用现有配置）
+
+```bash
+rustring init
+```
+
+#### 步骤 4：生成站点
+
+```bash
+cargo run -- build
+```
+
+或直接使用编译好的二进制：
+
+```bash
+target/release/rustring build
+```
+
+#### 步骤 5：本地预览
+
+```bash
+cargo run -- serve
+```
+
+#### 步骤 6：看生成结果
 
 构建完成后可以直接打开：
 
@@ -798,7 +860,7 @@ site/assets/交大校徽-蓝色.png
 1. 在 `docs/` 下创建新的 `.md`
 2. 需要排序时，加 front matter `order`
 3. 如果使用显式 `nav`，再去 `zensical.toml` 补上它
-4. 运行 `cargo run -- serve`
+4. 运行 `rustring serve`
 
 ### 修改页面标题
 
@@ -833,7 +895,7 @@ order: 3
 运行：
 
 ```bash
-cargo run -- serve
+rustring serve
 ```
 
 当 `serve` 正在运行时：
@@ -951,7 +1013,7 @@ cargo run -- serve
 - 你使用的是显式 `nav`，但没有把新页面加进去
 - 你还没重新构建
 
-如果正在运行 `cargo run -- serve`，保存文件后会自动重建。
+如果正在运行 `rustring serve`，保存文件后会自动重建。
 
 ### 为什么 `title` 和 Markdown 第一个标题不一样？
 
@@ -965,7 +1027,7 @@ cargo run -- serve
 - 有没有成功执行 `build` 或 `serve`
 - 是否存在 `site/search.json`
 
-另外，如果你直接用浏览器打开 `file://.../site/index.html`，部分浏览器会限制本地 JSON 读取。此时推荐用 `cargo run -- serve` 预览。
+另外，如果你直接用浏览器打开 `file://.../site/index.html`，部分浏览器会限制本地 JSON 读取。此时推荐用 `rustring serve` 预览。
 
 ### 为什么主题切换刷新后还能保留？
 
@@ -1113,7 +1175,7 @@ cargo run -- serve
 
 ```bash
 cargo test
-cargo run -- build
+rustring build
 ```
 
 构建后重点检查：
