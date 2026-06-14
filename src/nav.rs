@@ -61,7 +61,7 @@ impl Navigation {
         &self,
         page: &Page,
     ) -> (Vec<RenderNavItem>, Option<PageLink>, Option<PageLink>) {
-        let items = render_items(&self.items, page);
+        let items = render_items(&self.items, &page.output_path, &page.output_path);
         let Some(position) = self
             .page_order
             .iter()
@@ -79,6 +79,10 @@ impl Navigation {
             .map(|entry| page_link(entry, page));
 
         (items, previous, next)
+    }
+
+    pub fn render_for_output_path(&self, output_path: &Path) -> Vec<RenderNavItem> {
+        render_items(&self.items, output_path, output_path)
     }
 
     fn build_auto(pages: &mut [Page]) -> Self {
@@ -373,24 +377,32 @@ fn collect_order(items: &[NavItem], order: &mut Vec<OrderedPage>) {
     }
 }
 
-fn render_items(items: &[NavItem], current_page: &Page) -> Vec<RenderNavItem> {
+fn render_items(
+    items: &[NavItem],
+    current_output_path: &Path,
+    active_output_path: &Path,
+) -> Vec<RenderNavItem> {
     items
         .iter()
-        .map(|item| render_item(item, current_page))
+        .map(|item| render_item(item, current_output_path, active_output_path))
         .collect()
 }
 
-fn render_item(item: &NavItem, current_page: &Page) -> RenderNavItem {
-    let children = render_items(&item.children, current_page);
+fn render_item(
+    item: &NavItem,
+    current_output_path: &Path,
+    active_output_path: &Path,
+) -> RenderNavItem {
+    let children = render_items(&item.children, current_output_path, active_output_path);
     let self_active = item
         .target
         .as_ref()
-        .is_some_and(|target| target.source_key == current_page.source_key);
+        .is_some_and(|target| target.output_path == active_output_path);
     let child_active = children.iter().any(|child| child.active);
     let href = item
         .target
         .as_ref()
-        .map(|target| relative_href(&current_page.output_path, &target.output_path));
+        .map(|target| relative_href(current_output_path, &target.output_path));
 
     RenderNavItem {
         title: item.title.clone(),

@@ -83,24 +83,6 @@ pub fn build_knowledge_graph(pages: &[Page], use_directory_urls: bool) -> Graph 
             insert_edge(&mut edges, &doc_id, &tag_id, "has_tag", 2.0);
         }
 
-        for heading in &page.search_headings {
-            let topic_id = topic_id(heading);
-            nodes.entry(topic_id.clone()).or_insert_with(|| {
-                let slug = slugify(heading);
-                GraphNode {
-                    id: topic_id.clone(),
-                    label: heading.clone(),
-                    node_type: String::from("topic"),
-                    url: format!("knowledge-graph/?topic={slug}"),
-                    summary: None,
-                    tags: Vec::new(),
-                    date: None,
-                    source: None,
-                }
-            });
-            insert_edge(&mut edges, &doc_id, &topic_id, "about_topic", 1.5);
-        }
-
         for link in &page.links {
             let Some(target_key) = resolve_markdown_link(page, &link.destination) else {
                 continue;
@@ -128,10 +110,6 @@ pub fn build_knowledge_graph(pages: &[Page], use_directory_urls: bool) -> Graph 
                     shared_tags as f64 * 0.8,
                 );
             }
-
-            if same_section(left, right) {
-                insert_edge(&mut edges, &left_id, &right_id, "same_section", 0.5);
-            }
         }
     }
 
@@ -148,10 +126,6 @@ fn document_id(page: &Page) -> String {
 
 fn tag_id(tag: &str) -> String {
     format!("tag:{}", slugify(tag))
-}
-
-fn topic_id(topic: &str) -> String {
-    format!("topic:{}", slugify(topic))
 }
 
 fn unique_tags(tags: &[String]) -> Vec<String> {
@@ -202,10 +176,6 @@ fn shared_tag_count(left: &Page, right: &Page) -> usize {
         .filter(|tag| left_tags.contains(tag))
         .collect::<BTreeSet<_>>()
         .len()
-}
-
-fn same_section(left: &Page, right: &Page) -> bool {
-    left.relative_source.parent() == right.relative_source.parent()
 }
 
 fn resolve_markdown_link(page: &Page, destination: &str) -> Option<String> {
@@ -287,7 +257,7 @@ fn slugify(value: &str) -> String {
 
     let slug = slug.trim_matches('-').to_string();
     if slug.is_empty() {
-        String::from("topic")
+        String::from("tag")
     } else {
         slug
     }

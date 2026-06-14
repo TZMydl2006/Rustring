@@ -171,7 +171,7 @@ pub fn render_knowledge_graph_page(
     let rendered = template.render(context! {
         site_name => config.project.site_name.clone(),
         title => format!("Knowledge Graph - {}", config.project.site_name),
-        description => "Explore document, tag, and topic relationships generated from Markdown.".to_string(),
+        description => "Explore links and shared tags between Markdown documents.".to_string(),
         nav_html => nav_html,
         home_href => "..".to_string(),
         stylesheet_href => "../assets/minizensical.css".to_string(),
@@ -180,6 +180,7 @@ pub fn render_knowledge_graph_page(
         search_script_href => "../assets/minizensical-search.js".to_string(),
         search_index_href => "../search.json".to_string(),
         code_script_href => "../assets/minizensical-code.js".to_string(),
+        d3_script_href => "../assets/d3.min.js".to_string(),
         graph_script_href => "../assets/minizensical-graph.js".to_string(),
         graph_json_href => "../graph.json".to_string(),
         font_options => font_options.iter().collect::<Vec<_>>(),
@@ -285,6 +286,14 @@ pub fn graph_script_path() -> PathBuf {
 
 pub fn graph_script_contents() -> &'static str {
     GRAPH_SCRIPT
+}
+
+pub fn d3_script_path() -> PathBuf {
+    PathBuf::from("assets/d3.min.js")
+}
+
+pub fn d3_script_contents() -> &'static [u8] {
+    include_bytes!("../vendor/d3/d3.min.js")
 }
 
 pub fn theme_script_path() -> PathBuf {
@@ -731,6 +740,10 @@ pre {
   gap: 24px;
   min-height: 100vh;
   padding: 24px;
+}
+
+.graph-view .shell {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
 }
 
 .sidebar,
@@ -1343,135 +1356,190 @@ mark {
 }
 
 .graph-page .page-body {
-  display: grid;
-  gap: 18px;
+  min-width: 0;
 }
 
 .graph-controls {
+  position: absolute;
+  z-index: 4;
+  top: 14px;
+  right: 14px;
+  width: min(300px, calc(100% - 28px));
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-solid) 94%, transparent);
+  box-shadow: 0 12px 30px rgba(18, 41, 39, 0.14);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.graph-controls-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.graph-controls-summary::-webkit-details-marker {
+  display: none;
+}
+
+.graph-controls-summary::after {
+  content: "+";
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.graph-controls[open] .graph-controls-summary::after {
+  content: "-";
+}
+
+.graph-controls-body {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(160px, 0.7fr);
-  gap: 12px;
-  align-items: end;
+  gap: 13px;
+  padding: 2px 14px 14px;
+  border-top: 1px solid var(--line);
 }
 
 .graph-control {
   display: grid;
-  gap: 7px;
-}
-
-.graph-control span,
-.graph-types-label,
-.graph-detail-label {
+  gap: 6px;
+  color: var(--muted);
   font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent-strong);
+  font-weight: 700;
 }
 
-.graph-input,
-.graph-select {
+.graph-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.graph-input {
   width: 100%;
   border: 1px solid var(--control-border);
-  border-radius: 14px;
-  padding: 11px 12px;
+  border-radius: 7px;
+  padding: 9px 10px;
   font: inherit;
   background: var(--panel-solid);
   color: var(--ink);
 }
 
-.graph-input:focus,
-.graph-select:focus {
+.graph-input:focus {
   outline: 2px solid var(--focus-ring);
   border-color: var(--control-border-hover);
 }
 
-.graph-types {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.graph-type-option {
+.graph-toggle {
   display: inline-flex;
-  gap: 6px;
   align-items: center;
-  padding: 7px 10px;
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  background: var(--panel-solid);
-  color: var(--muted);
+  gap: 8px;
+  color: var(--ink);
   cursor: pointer;
 }
 
-.graph-type-option input {
+.graph-toggle input {
+  width: 34px;
+  height: 18px;
   accent-color: var(--accent);
 }
 
-.graph-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.6fr);
-  gap: 16px;
+.graph-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
 }
 
-.graph-stage,
-.graph-detail {
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--panel-strong);
+.graph-control output {
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.graph-reset {
+  min-height: 36px;
+  border: 1px solid var(--control-border);
+  border-radius: 7px;
+  background: var(--panel-solid);
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.graph-reset:hover {
+  border-color: var(--control-border-hover);
+  background: var(--accent-soft);
 }
 
 .graph-stage {
-  min-height: 520px;
+  position: relative;
+  width: 100%;
+  min-height: 620px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
   overflow: hidden;
+  touch-action: none;
 }
 
 .graph-svg {
   display: block;
   width: 100%;
-  min-height: 520px;
+  height: 620px;
+  cursor: grab;
+  user-select: none;
+}
+
+.graph-svg:active {
+  cursor: grabbing;
 }
 
 .graph-edge {
   stroke: var(--line);
-  stroke-width: 1.5;
-  opacity: 0.78;
+  stroke-width: 1.2;
+  opacity: 0.5;
+  transition: opacity 140ms ease, stroke-width 140ms ease;
 }
 
 .graph-edge.links_to {
   stroke: var(--accent);
-  stroke-width: 2.4;
+  marker-end: url(#graph-arrow);
 }
 
 .graph-edge.has_tag {
   stroke: var(--warm);
 }
 
-.graph-edge.about_topic {
-  stroke: var(--accent-strong);
+.graph-edge.shared_tag {
+  stroke-dasharray: 5 5;
 }
 
-.graph-edge.shared_tag,
-.graph-edge.same_section {
-  stroke-dasharray: 5 5;
+.graph-arrow {
+  fill: var(--accent);
 }
 
 .graph-node {
   cursor: pointer;
+  outline: none;
 }
 
 .graph-node circle {
-  stroke: var(--line);
-  stroke-width: 2;
-  fill: var(--panel-solid);
-  transition: transform 160ms ease, stroke 160ms ease, fill 160ms ease;
+  stroke: color-mix(in srgb, var(--panel-solid) 75%, var(--ink));
+  stroke-width: 1.5;
+  transition: opacity 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
 }
 
-.graph-node:hover circle,
-.graph-node.is-selected circle {
+.graph-node.is-focused circle,
+.graph-node:focus circle,
+.graph-node.is-search-match circle {
   stroke: var(--accent);
-  fill: var(--accent-soft);
+  stroke-width: 3;
 }
 
 .graph-node.document circle {
@@ -1482,62 +1550,59 @@ mark {
   fill: var(--warm);
 }
 
-.graph-node.topic circle {
-  fill: var(--panel-solid);
-}
-
-.graph-node text {
+.graph-label {
   fill: var(--ink);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   paint-order: stroke;
   stroke: var(--panel-solid);
-  stroke-width: 3px;
+  stroke-width: 3.5px;
   stroke-linejoin: round;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
 }
 
-.graph-detail {
-  padding: 16px;
-  display: grid;
-  gap: 12px;
-  align-self: start;
+.graph-node.is-focused .graph-label,
+.graph-node.is-neighbor .graph-label,
+.graph-node.is-prominent .graph-label,
+.graph-node.is-search-match .graph-label,
+.graph-svg.show-all-labels .graph-label {
+  opacity: 1;
 }
 
-.graph-detail-title {
-  margin: 0;
-  color: var(--accent-strong);
+.graph-node.is-dimmed,
+.graph-edge.is-dimmed {
+  opacity: 0.12;
 }
 
-.graph-detail-body {
-  display: grid;
-  gap: 10px;
-  color: var(--muted);
-  line-height: 1.6;
+.graph-edge.is-active {
+  opacity: 0.95;
+  stroke-width: 2.2;
 }
 
-.graph-detail-body a {
-  color: var(--accent-strong);
-  font-weight: 700;
+.graph-node.is-search-dimmed,
+.graph-edge.is-search-dimmed {
+  opacity: 0.22;
 }
 
-.graph-tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.graph-tag-chip {
-  border-radius: 999px;
-  padding: 4px 8px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 0.78rem;
-  font-weight: 700;
+.graph-empty {
+  fill: var(--muted);
+  font-size: 14px;
 }
 
 .graph-status {
-  color: var(--muted);
+  position: absolute;
+  z-index: 3;
+  left: 14px;
+  bottom: 12px;
   margin: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-solid) 88%, transparent);
+  color: var(--muted);
+  font-size: 0.78rem;
+  pointer-events: none;
 }
 
 @media (min-width: 1181px) {
@@ -1621,7 +1686,8 @@ mark {
 }
 
 @media (max-width: 820px) {
-  .shell {
+  .shell,
+  .graph-view .shell {
     grid-template-columns: 1fr;
     padding: 18px;
   }
@@ -1643,17 +1709,18 @@ mark {
     text-align: left;
   }
 
-  .graph-controls,
-  .graph-layout {
-    grid-template-columns: 1fr;
-  }
-
   .graph-stage {
-    min-height: 420px;
+    min-height: 520px;
   }
 
   .graph-svg {
-    min-height: 420px;
+    height: 520px;
+  }
+
+  .graph-controls {
+    top: 10px;
+    right: 10px;
+    width: min(280px, calc(100% - 20px));
   }
 }
 
@@ -2255,32 +2322,47 @@ const SEARCH_SCRIPT: &str = r##"
 const GRAPH_SCRIPT: &str = r##"
 (() => {
   const svg = document.getElementById("knowledge-graph");
+  const stage = svg && svg.closest(".graph-stage");
   const status = document.getElementById("graph-status");
   const queryInput = document.getElementById("graph-filter");
-  const tagSelect = document.getElementById("graph-tag-filter");
-  const typeInputs = Array.from(document.querySelectorAll("[data-graph-type]"));
-  const detailTitle = document.getElementById("graph-detail-title");
-  const detailBody = document.getElementById("graph-detail-body");
+  const showTagsInput = document.getElementById("graph-show-tags");
+  const controls = document.getElementById("graph-controls");
+  const resetButton = document.getElementById("graph-reset");
+  const forceInputs = {
+    center: document.getElementById("graph-center-force"),
+    repulsion: document.getElementById("graph-repulsion-force"),
+    attraction: document.getElementById("graph-link-force"),
+    distance: document.getElementById("graph-link-distance")
+  };
 
-  if (!svg || !status || !queryInput || !tagSelect || !detailTitle || !detailBody) {
+  if (!svg || !stage || !status || !queryInput || !showTagsInput || !resetButton) {
     return;
   }
 
+  if (!window.d3) {
+    status.textContent = "Knowledge graph runtime could not load. Rebuild the site so assets/d3.min.js is published.";
+    return;
+  }
+
+  const d3 = window.d3;
   const { graphJson: graphJsonHref = "", siteHome: siteHomeHref = "" } = document.body.dataset;
   const graphUrl = new URL(graphJsonHref, window.location.href);
   const siteRootUrl = new URL(siteHomeHref || ".", window.location.href);
-  const svgNs = "http://www.w3.org/2000/svg";
   let graph = { nodes: [], edges: [] };
-  let selectedNodeId = "";
-
-  const escapeHtml = (value) =>
-    String(value || "").replace(/[&<>\"']/g, (character) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      "\"": "&quot;",
-      "'": "&#39;"
-    })[character]);
+  let simulation = null;
+  let currentNodes = [];
+  let currentEdges = [];
+  let nodeSelection = null;
+  let edgeSelection = null;
+  let canvas = null;
+  let hoveredNodeId = "";
+  let selectedTagId = "";
+  let zoomScale = 1;
+  let width = 900;
+  let height = 620;
+  const positions = new Map();
+  const defaults = { center: 10, repulsion: 90, attraction: 35, distance: 95 };
+  const svgSelection = d3.select(svg);
 
   const trimLabel = (value, length = 24) => {
     const text = String(value || "");
@@ -2296,209 +2378,295 @@ const GRAPH_SCRIPT: &str = r##"
       ...(node.tags || [])
     ].filter(Boolean).join(" ").toLowerCase();
 
-  const selectedTypes = () =>
-    new Set(typeInputs.filter((input) => input.checked).map((input) => input.dataset.graphType));
-
-  const connectedDocumentIdsForTag = (tag) => {
-    if (!tag) {
-      return new Set();
-    }
-    return new Set(
-      graph.nodes
-        .filter((node) => node.type === "document" && (node.tags || []).includes(tag))
-        .map((node) => node.id)
-    );
-  };
-
-  const nodeMatchesTag = (node, tag, connectedDocuments) => {
-    if (!tag) {
-      return true;
-    }
-    if (node.type === "tag") {
-      return node.label === tag;
-    }
-    if (node.type === "document") {
-      return (node.tags || []).includes(tag);
-    }
-    return graph.edges.some((edge) =>
-      edge.type === "about_topic"
-      && edge.target === node.id
-      && connectedDocuments.has(edge.source)
-    );
-  };
-
-  const filteredGraph = () => {
-    const query = queryInput.value.trim().toLowerCase();
-    const tag = tagSelect.value;
-    const types = selectedTypes();
-    const connectedDocuments = connectedDocumentIdsForTag(tag);
-    const nodes = graph.nodes.filter((node) => {
-      const matchesType = types.has(node.type);
-      const matchesQuery = !query || nodeSearchText(node).includes(query);
-      return matchesType && matchesQuery && nodeMatchesTag(node, tag, connectedDocuments);
-    });
-    const nodeIds = new Set(nodes.map((node) => node.id));
-    const edges = graph.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
-    return { nodes, edges };
-  };
-
   const nodeRadius = (node) => {
-    if (node.type === "document") {
-      return 15;
-    }
-    if (node.type === "tag") {
-      return 12;
-    }
-    return 10;
+    const degree = Number(node.degree) || 0;
+    return node.type === "tag"
+      ? 6 + Math.min(3, Math.sqrt(degree))
+      : 7 + Math.min(5, Math.sqrt(degree) * 1.3);
   };
 
-  const layoutNodes = (nodes) => {
-    const width = 900;
-    const height = 520;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = nodes.length > 12 ? 210 : 180;
-    return new Map(nodes.map((node, index) => {
-      const angle = nodes.length === 1 ? -Math.PI / 2 : (Math.PI * 2 * index / nodes.length) - Math.PI / 2;
-      return [
-        node.id,
-        {
-          node,
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        }
-      ];
-    }));
-  };
-
-  const appendSvg = (name, attributes, parent = svg) => {
-    const element = document.createElementNS(svgNs, name);
-    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
-    parent.appendChild(element);
-    return element;
-  };
-
+  const endpointId = (endpoint) => typeof endpoint === "object" ? endpoint.id : endpoint;
   const documentUrl = (node) => new URL(node.url || "", siteRootUrl).toString();
+  const forceValue = (name) => {
+    const value = Number(forceInputs[name] && forceInputs[name].value);
+    return Number.isFinite(value) ? value : defaults[name];
+  };
 
-  const renderDetail = (node) => {
-    if (!node) {
-      detailTitle.textContent = "Select a node";
-      detailBody.innerHTML = "<p>Choose a document, tag, or topic from the graph to inspect its metadata and relationships.</p>";
+  const savePositions = () => {
+    currentNodes.forEach((node) => {
+      if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
+        positions.set(node.id, { x: node.x, y: node.y, vx: node.vx || 0, vy: node.vy || 0 });
+      }
+    });
+  };
+
+  const updateOutputs = () => {
+    Object.entries(forceInputs).forEach(([name, input]) => {
+      const output = input && document.querySelector('[data-force-output="' + name + '"]');
+      if (output) output.value = input.value;
+    });
+  };
+
+  const updateStatus = () => {
+    const query = queryInput.value.trim().toLowerCase();
+    if (query) {
+      const matches = currentNodes.filter((node) => nodeSearchText(node).includes(query)).length;
+      status.textContent = matches + " match(es) among " + currentNodes.length + " node(s).";
+    } else {
+      status.textContent = currentNodes.length + " node(s), " + currentEdges.length + " edge(s) visible.";
+    }
+  };
+
+  const updateVisualState = () => {
+    if (!nodeSelection || !edgeSelection) return;
+    const focusId = hoveredNodeId || selectedTagId;
+    const neighbors = new Set(focusId ? [focusId] : []);
+    if (focusId) {
+      currentEdges.forEach((edge) => {
+        const sourceId = endpointId(edge.source);
+        const targetId = endpointId(edge.target);
+        if (sourceId === focusId) neighbors.add(targetId);
+        if (targetId === focusId) neighbors.add(sourceId);
+      });
+    }
+
+    const query = queryInput.value.trim().toLowerCase();
+    nodeSelection
+      .classed("is-focused", (node) => node.id === focusId)
+      .classed("is-neighbor", (node) => Boolean(focusId) && neighbors.has(node.id) && node.id !== focusId)
+      .classed("is-dimmed", (node) => Boolean(focusId) && !neighbors.has(node.id))
+      .classed("is-search-match", (node) => Boolean(query) && nodeSearchText(node).includes(query))
+      .classed("is-search-dimmed", (node) => Boolean(query) && !nodeSearchText(node).includes(query));
+
+    edgeSelection
+      .classed("is-active", (edge) => {
+        const sourceId = endpointId(edge.source);
+        const targetId = endpointId(edge.target);
+        return Boolean(focusId) && (sourceId === focusId || targetId === focusId);
+      })
+      .classed("is-dimmed", (edge) => Boolean(focusId)
+        && endpointId(edge.source) !== focusId
+        && endpointId(edge.target) !== focusId)
+      .classed("is-search-dimmed", (edge) => Boolean(query)
+        && !nodeSearchText(edge.source).includes(query)
+        && !nodeSearchText(edge.target).includes(query));
+
+    svgSelection.classed("show-all-labels", zoomScale >= 1.45);
+    updateStatus();
+  };
+
+  const updateForces = (restart = true) => {
+    if (!simulation) return;
+    const centerStrength = forceValue("center") / 100;
+    const attractionStrength = forceValue("attraction") / 100;
+    simulation.force("charge").strength(-forceValue("repulsion"));
+    simulation.force("link")
+      .distance(forceValue("distance"))
+      .strength((edge) => Math.min(1, attractionStrength * (0.75 + (Number(edge.weight) || 1) * 0.12)));
+    simulation.force("x").x(width / 2).strength(centerStrength);
+    simulation.force("y").y(height / 2).strength(centerStrength);
+    if (restart) simulation.alpha(0.55).restart();
+  };
+
+  const activateNode = (node) => {
+    if (node.__dragged) {
+      node.__dragged = false;
       return;
     }
-
-    detailTitle.textContent = node.label || node.id;
-    const tags = (node.tags || []).map((tag) => '<span class="graph-tag-chip">' + escapeHtml(tag) + "</span>").join("");
-    const url = node.url ? documentUrl(node) : "";
-    detailBody.innerHTML = [
-      '<p><span class="graph-detail-label">Type</span><br>' + escapeHtml(node.type) + '</p>',
-      node.summary ? '<p><span class="graph-detail-label">Summary</span><br>' + escapeHtml(node.summary) + '</p>' : "",
-      node.source ? '<p><span class="graph-detail-label">Source</span><br>' + escapeHtml(node.source) + '</p>' : "",
-      tags ? '<div><span class="graph-detail-label">Tags</span><div class="graph-tag-list">' + tags + '</div></div>' : "",
-      url && node.type === "document" ? '<p><a href="' + escapeHtml(url) + '">Open document</a></p>' : ""
-    ].join("");
+    if (node.type === "document" && node.url !== undefined) {
+      window.location.href = documentUrl(node);
+      return;
+    }
+    if (node.type === "tag") {
+      selectedTagId = selectedTagId === node.id ? "" : node.id;
+      updateVisualState();
+    }
   };
 
-  const render = () => {
-    const { nodes, edges } = filteredGraph();
-    const positions = layoutNodes(nodes);
-    const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId);
-    svg.innerHTML = "";
-    svg.setAttribute("viewBox", "0 0 900 520");
-    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-
-    edges.forEach((edge) => {
-      const source = positions.get(edge.source);
-      const target = positions.get(edge.target);
-      if (!source || !target) {
-        return;
+  const dragBehavior = () => d3.drag()
+    .clickDistance(4)
+    .on("start", (event, node) => {
+      event.sourceEvent.stopPropagation();
+      node.__dragged = false;
+      node.__dragStartX = event.x;
+      node.__dragStartY = event.y;
+      if (!event.active) simulation.alphaTarget(0.22).restart();
+      node.fx = node.x;
+      node.fy = node.y;
+    })
+    .on("drag", (event, node) => {
+      if (Math.hypot(event.x - node.__dragStartX, event.y - node.__dragStartY) > 4) {
+        node.__dragged = true;
       }
-      appendSvg("line", {
-        class: "graph-edge " + edge.type,
-        x1: source.x,
-        y1: source.y,
-        x2: target.x,
-        y2: target.y,
-        "stroke-width": Math.max(1, Math.min(4, Number(edge.weight) || 1))
-      });
+      node.fx = event.x;
+      node.fy = event.y;
+    })
+    .on("end", (event, node) => {
+      if (!event.active) simulation.alphaTarget(0);
+      node.fx = null;
+      node.fy = null;
     });
 
-    nodes.forEach((node) => {
-      const position = positions.get(node.id);
-      const group = appendSvg("g", {
-        class: "graph-node " + node.type + (node.id === selectedNodeId ? " is-selected" : ""),
-        tabindex: "0",
-        role: "button",
-        "aria-label": node.label || node.id,
-        transform: "translate(" + position.x + " " + position.y + ")"
-      });
-      appendSvg("circle", { r: nodeRadius(node) }, group);
-      appendSvg("text", { x: 0, y: nodeRadius(node) + 17, "text-anchor": "middle" }, group)
-        .textContent = trimLabel(node.label || node.id);
+  const rebuildGraph = () => {
+    savePositions();
+    if (simulation) simulation.stop();
 
-      const activate = () => {
-        selectedNodeId = node.id;
-        renderDetail(node);
-        if (node.type === "document" && node.url) {
-          window.location.href = documentUrl(node);
-          return;
-        }
-        if (node.type === "tag") {
-          tagSelect.value = node.label || "";
-        }
-        if (node.type === "topic") {
-          queryInput.value = node.label || "";
-        }
-        render();
-      };
+    const allowedTypes = showTagsInput.checked ? new Set(["document", "tag"]) : new Set(["document"]);
+    currentNodes = graph.nodes
+      .filter((node) => allowedTypes.has(node.type))
+      .map((node) => ({ ...node, ...(positions.get(node.id) || {}) }));
+    const nodeIds = new Set(currentNodes.map((node) => node.id));
+    currentEdges = graph.edges
+      .filter((edge) => ["has_tag", "links_to", "shared_tag"].includes(edge.type))
+      .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+      .map((edge) => ({ ...edge }));
 
-      group.addEventListener("click", activate);
-      group.addEventListener("keydown", (event) => {
+    const degree = new Map(currentNodes.map((node) => [node.id, 0]));
+    currentEdges.forEach((edge) => {
+      degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
+      degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
+    });
+    currentNodes.forEach((node) => { node.degree = degree.get(node.id) || 0; });
+
+    selectedTagId = currentNodes.some((node) => node.id === selectedTagId) ? selectedTagId : "";
+    svgSelection.selectAll("*").remove();
+    const defs = svgSelection.append("defs");
+    defs.append("marker")
+      .attr("id", "graph-arrow")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 17)
+      .attr("markerWidth", 5)
+      .attr("markerHeight", 5)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,-5L10,0L0,5")
+      .attr("class", "graph-arrow");
+
+    canvas = svgSelection.append("g").attr("class", "graph-canvas");
+    edgeSelection = canvas.append("g")
+      .attr("class", "graph-edges")
+      .selectAll("line")
+      .data(currentEdges)
+      .join("line")
+      .attr("class", (edge) => "graph-edge " + edge.type)
+      .attr("stroke-width", (edge) => Math.max(1, Math.min(3, Number(edge.weight) || 1)));
+
+    nodeSelection = canvas.append("g")
+      .attr("class", "graph-nodes")
+      .selectAll("g")
+      .data(currentNodes, (node) => node.id)
+      .join("g")
+      .attr("class", (node) => "graph-node " + node.type)
+      .classed("is-prominent", (node) => node.type === "document" && node.degree >= 2)
+      .attr("tabindex", 0)
+      .attr("role", "button")
+      .attr("aria-label", (node) => node.label || node.id)
+      .on("mouseenter", (_, node) => { hoveredNodeId = node.id; updateVisualState(); })
+      .on("mouseleave", () => { hoveredNodeId = ""; updateVisualState(); })
+      .on("click", (event, node) => { event.stopPropagation(); activateNode(node); })
+      .on("keydown", (event, node) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          activate();
+          activateNode(node);
         }
+      })
+      .call(dragBehavior());
+
+    nodeSelection.append("circle").attr("r", nodeRadius);
+    nodeSelection.append("text")
+      .attr("class", "graph-label")
+      .attr("x", 0)
+      .attr("y", (node) => nodeRadius(node) + 15)
+      .attr("text-anchor", "middle")
+      .text((node) => trimLabel(node.label || node.id));
+    nodeSelection.append("title").text((node) => node.label || node.id);
+
+    if (!currentNodes.length) {
+      canvas.append("text")
+        .attr("x", width / 2)
+        .attr("y", height / 2)
+        .attr("text-anchor", "middle")
+        .attr("class", "graph-empty")
+        .text("No documents are available.");
+    }
+
+    simulation = d3.forceSimulation(currentNodes)
+      .force("link", d3.forceLink(currentEdges).id((node) => node.id))
+      .force("charge", d3.forceManyBody())
+      .force("x", d3.forceX(width / 2))
+      .force("y", d3.forceY(height / 2))
+      .force("collision", d3.forceCollide().radius((node) => nodeRadius(node) + 7).strength(0.9))
+      .on("tick", () => {
+        edgeSelection
+          .attr("x1", (edge) => edge.source.x)
+          .attr("y1", (edge) => edge.source.y)
+          .attr("x2", (edge) => edge.target.x)
+          .attr("y2", (edge) => edge.target.y);
+        nodeSelection.attr("transform", (node) => "translate(" + node.x + "," + node.y + ")");
       });
+    updateForces(false);
+    simulation.alpha(0.9).restart();
+    updateVisualState();
+  };
+
+  const zoomBehavior = d3.zoom()
+    .scaleExtent([0.35, 4])
+    .on("zoom", (event) => {
+      zoomScale = event.transform.k;
+      if (canvas) canvas.attr("transform", event.transform);
+      updateVisualState();
     });
+  svgSelection.call(zoomBehavior).on("dblclick.zoom", null);
+  svgSelection.on("click", () => {
+    selectedTagId = "";
+    updateVisualState();
+  });
 
-    if (!nodes.length) {
-      appendSvg("text", { x: 450, y: 260, "text-anchor": "middle", class: "graph-empty" })
-        .textContent = "No matching nodes.";
-    }
-
-    if (!selectedNode || !positions.has(selectedNode.id)) {
-      selectedNodeId = "";
-      renderDetail(null);
-    }
-    status.textContent = nodes.length + " node(s), " + edges.length + " edge(s) visible.";
+  const resizeGraph = () => {
+    width = Math.max(320, stage.clientWidth);
+    height = Math.max(420, stage.clientHeight);
+    svgSelection.attr("viewBox", "0 0 " + width + " " + height);
+    if (simulation) updateForces(true);
   };
 
-  const populateTagFilter = () => {
-    const tags = Array.from(new Set(
-      graph.nodes
-        .filter((node) => node.type === "tag")
-        .map((node) => node.label)
-        .filter(Boolean)
-    )).sort((left, right) => left.localeCompare(right));
+  queryInput.addEventListener("input", updateVisualState);
+  showTagsInput.addEventListener("change", rebuildGraph);
+  Object.values(forceInputs).forEach((input) => {
+    if (!input) return;
+    input.addEventListener("input", () => {
+      updateOutputs();
+      updateForces(true);
+    });
+  });
+  resetButton.addEventListener("click", () => {
+    Object.entries(defaults).forEach(([name, value]) => {
+      if (forceInputs[name]) forceInputs[name].value = value;
+    });
+    updateOutputs();
+    currentNodes.forEach((node, index) => {
+      const angle = index * 2.399963229728653;
+      const radius = 18 * Math.sqrt(index);
+      node.x = width / 2 + Math.cos(angle) * radius;
+      node.y = height / 2 + Math.sin(angle) * radius;
+      node.vx = 0;
+      node.vy = 0;
+      node.fx = null;
+      node.fy = null;
+    });
+    updateForces(true);
+    svgSelection.transition().duration(250).call(zoomBehavior.transform, d3.zoomIdentity);
+  });
 
-    tagSelect.innerHTML = '<option value="">All tags</option>' + tags.map((tag) =>
-      '<option value="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</option>'
-    ).join("");
-
-    const params = new URL(window.location.href).searchParams;
-    const initialTag = params.get("tag");
-    if (initialTag && tags.includes(initialTag)) {
-      tagSelect.value = initialTag;
-    }
-    const initialTopic = params.get("topic");
-    if (initialTopic) {
-      queryInput.value = initialTopic;
-    }
-  };
-
-  queryInput.addEventListener("input", render);
-  tagSelect.addEventListener("change", render);
-  typeInputs.forEach((input) => input.addEventListener("change", render));
+  if (controls && window.matchMedia("(max-width: 820px)").matches) {
+    controls.removeAttribute("open");
+  }
+  updateOutputs();
+  resizeGraph();
+  if (window.ResizeObserver) {
+    new ResizeObserver(resizeGraph).observe(stage);
+  } else {
+    window.addEventListener("resize", resizeGraph);
+  }
 
   status.textContent = "Loading the knowledge graph...";
   fetch(graphUrl, { cache: "no-store" })
@@ -2510,11 +2678,14 @@ const GRAPH_SCRIPT: &str = r##"
     })
     .then((data) => {
       graph = {
-        nodes: Array.isArray(data.nodes) ? data.nodes : [],
-        edges: Array.isArray(data.edges) ? data.edges : []
+        nodes: Array.isArray(data.nodes)
+          ? data.nodes.filter((node) => node.type === "document" || node.type === "tag")
+          : [],
+        edges: Array.isArray(data.edges)
+          ? data.edges.filter((edge) => ["has_tag", "links_to", "shared_tag"].includes(edge.type))
+          : []
       };
-      populateTagFilter();
-      render();
+      rebuildGraph();
     })
     .catch(() => {
       status.textContent = "Knowledge graph could not be loaded. Use 'cargo run -- serve' or deploy the built site through HTTP.";
@@ -2813,7 +2984,7 @@ const KNOWLEDGE_GRAPH_TEMPLATE: &str = r##"
   <script>{{ theme_boot_script | safe }}</script>
   <link rel="stylesheet" href="{{ stylesheet_href }}">
 </head>
-<body data-search-index="{{ search_index_href }}" data-site-home="{{ home_href }}" data-graph-json="{{ graph_json_href | safe }}">
+<body class="graph-view" data-search-index="{{ search_index_href }}" data-site-home="{{ home_href }}" data-graph-json="{{ graph_json_href | safe }}">
   <div class="ambient ambient-a"></div>
   <div class="ambient ambient-b"></div>
   <div class="shell">
@@ -2871,48 +3042,39 @@ const KNOWLEDGE_GRAPH_TEMPLATE: &str = r##"
         </header>
 
         <div class="page-body">
-          <section class="graph-controls" aria-label="Knowledge graph filters">
-            <label class="graph-control" for="graph-filter">
-              <span>Filter</span>
-              <input id="graph-filter" class="graph-input" type="search" placeholder="Search nodes, tags, topics, and sources">
-            </label>
-            <label class="graph-control" for="graph-tag-filter">
-              <span>Tag</span>
-              <select id="graph-tag-filter" class="graph-select">
-                <option value="">All tags</option>
-              </select>
-            </label>
-          </section>
-
-          <section class="graph-types" aria-label="Visible node types">
-            <span class="graph-types-label">Types</span>
-            <label class="graph-type-option">
-              <input type="checkbox" data-graph-type="document" checked>
-              Documents
-            </label>
-            <label class="graph-type-option">
-              <input type="checkbox" data-graph-type="tag" checked>
-              Tags
-            </label>
-            <label class="graph-type-option">
-              <input type="checkbox" data-graph-type="topic" checked>
-              Topics
-            </label>
-          </section>
-
-          <p id="graph-status" class="graph-status">Loading the knowledge graph...</p>
-
-          <section class="graph-layout">
-            <div class="graph-stage">
-              <svg id="knowledge-graph" class="graph-svg" role="img" aria-label="Knowledge graph"></svg>
-            </div>
-            <aside class="graph-detail" aria-label="Node details">
-              <p class="graph-detail-label">Details</p>
-              <h2 id="graph-detail-title" class="graph-detail-title">Select a node</h2>
-              <div id="graph-detail-body" class="graph-detail-body">
-                <p>Choose a document, tag, or topic from the graph to inspect its metadata and relationships.</p>
+          <section class="graph-stage" aria-label="Interactive knowledge graph">
+            <details id="graph-controls" class="graph-controls" open>
+              <summary class="graph-controls-summary">Graph controls</summary>
+              <div class="graph-controls-body">
+                <label class="graph-control" for="graph-filter">
+                  <span>Search documents</span>
+                  <input id="graph-filter" class="graph-input" type="search" placeholder="Search titles, tags, and sources">
+                </label>
+                <label class="graph-toggle" for="graph-show-tags">
+                  <input id="graph-show-tags" type="checkbox">
+                  <span>Show tags</span>
+                </label>
+                <label class="graph-control" for="graph-center-force">
+                  <span class="graph-control-row"><span>Center force</span><output data-force-output="center">10</output></span>
+                  <input id="graph-center-force" type="range" min="0" max="40" value="10">
+                </label>
+                <label class="graph-control" for="graph-repulsion-force">
+                  <span class="graph-control-row"><span>Node repulsion</span><output data-force-output="repulsion">90</output></span>
+                  <input id="graph-repulsion-force" type="range" min="20" max="300" value="90">
+                </label>
+                <label class="graph-control" for="graph-link-force">
+                  <span class="graph-control-row"><span>Link attraction</span><output data-force-output="attraction">35</output></span>
+                  <input id="graph-link-force" type="range" min="0" max="100" value="35">
+                </label>
+                <label class="graph-control" for="graph-link-distance">
+                  <span class="graph-control-row"><span>Link distance</span><output data-force-output="distance">95</output></span>
+                  <input id="graph-link-distance" type="range" min="30" max="220" value="95">
+                </label>
+                <button id="graph-reset" class="graph-reset" type="button">Reset layout</button>
               </div>
-            </aside>
+            </details>
+            <svg id="knowledge-graph" class="graph-svg" role="img" aria-label="Draggable document knowledge graph"></svg>
+            <p id="graph-status" class="graph-status">Loading the knowledge graph...</p>
           </section>
         </div>
       </article>
@@ -2922,6 +3084,7 @@ const KNOWLEDGE_GRAPH_TEMPLATE: &str = r##"
   <script src="{{ theme_script_href }}"></script>
   <script src="{{ code_script_href }}"></script>
   <script src="{{ search_script_href }}"></script>
+  <script src="{{ d3_script_href | safe }}"></script>
   <script src="{{ graph_script_href }}"></script>
 </body>
 </html>

@@ -5,10 +5,11 @@ use crate::nav::{NavItem, Navigation, PageLink, RenderNavItem, relative_href};
 use crate::page::Page;
 use crate::render::{
     ArchiveGroup, ArchiveSection, FontOption, code_script_contents, code_script_path,
-    default_font_options, graph_script_contents, graph_script_path, math_script_contents,
-    math_script_path, render_archive_index, render_knowledge_graph_page, render_page,
-    render_tag_archive, search_script_contents, search_script_path, stylesheet_contents,
-    stylesheet_path, theme_script_contents, theme_script_path,
+    d3_script_contents, d3_script_path, default_font_options, graph_script_contents,
+    graph_script_path, math_script_contents, math_script_path, render_archive_index,
+    render_knowledge_graph_page, render_page, render_tag_archive, search_script_contents,
+    search_script_path, stylesheet_contents, stylesheet_path, theme_script_contents,
+    theme_script_path,
 };
 use crate::scanner::{SourceFile, scan_site, titleize};
 use crate::search::{build_search_index, search_index_path};
@@ -169,33 +170,7 @@ fn build_site_contents(config: &Config) -> Result<()> {
         },
     ];
 
-    let graph_nav = vec![
-        RenderNavItem {
-            title: "Archive".to_string(),
-            href: None,
-            active: false,
-            children: vec![
-                RenderNavItem {
-                    title: "By Date".to_string(),
-                    href: Some("../archive/index.html".to_string()),
-                    active: false,
-                    children: vec![],
-                },
-                RenderNavItem {
-                    title: "By Tags".to_string(),
-                    href: Some("../archive/tags/index.html".to_string()),
-                    active: false,
-                    children: vec![],
-                },
-            ],
-        },
-        RenderNavItem {
-            title: "Knowledge Graph".to_string(),
-            href: Some("index.html".to_string()),
-            active: true,
-            children: vec![],
-        },
-    ];
+    let graph_nav = navigation.render_for_output_path(knowledge_graph_page_path);
 
     // Render archive pages
     let archive_html =
@@ -410,6 +385,7 @@ fn write_theme_assets(config: &Config, font_options: &[FontOption]) -> Result<()
         graph_script_path(),
         graph_script_contents().as_bytes(),
     )?;
+    write_asset(config, d3_script_path(), d3_script_contents())?;
     Ok(())
 }
 

@@ -1122,13 +1122,10 @@ rustring serve
 - 图谱节点类型包括：
   - `document`：每篇 Markdown 页面生成一个文档节点，包含标题、URL、summary、tags、date、source。
   - `tag`：front matter 中出现的每个标签生成一个标签节点。
-  - `topic`：H1 / H2 标题生成主题节点。
 - 图谱边类型包括：
   - `has_tag`：文档指向标签，权重 `2.0`。
   - `links_to`：文档指向被 Markdown 链接引用的站内文档，权重 `3.0`。
-  - `about_topic`：文档指向标题生成的主题，权重 `1.5`。
   - `shared_tag`：共享标签的文档之间建立边，权重为共享标签数量乘以 `0.8`。
-  - `same_section`：位于同一目录下的文档之间建立边，权重 `0.5`。
 - 站内 Markdown 链接解析会跳过外链、根路径链接、不可解析路径和非 `.md` 目标，避免无效链接导致构建失败。
 - `src/error.rs` 新增 `SerializeGraph` 错误类型，用于报告 `graph.json` 序列化失败。
 - `src/lib.rs` 导出 `graph` 模块，让项目内部模块边界保持清晰。
@@ -1146,15 +1143,18 @@ rustring serve
 - 导航中在 `Archive` 后追加 `Knowledge Graph` 入口。
 - 页面复用原有侧栏、搜索、主题切换和字体切换结构，保持现有视觉和交互风格。
 - 新增内置前端资源 `site/assets/minizensical-graph.js`，由 `src/render.rs` 中的 `GRAPH_SCRIPT` 输出。
-- 前端脚本通过 `fetch("../graph.json")` 读取图谱数据，并用原生 SVG 渲染节点和边。
+- 前端脚本通过 `fetch("../graph.json")` 读取图谱数据，并使用 D3 v7 的力导向模拟渲染节点和边。
+- D3 7.9.0 随项目保存在 `vendor/d3/`，构建时输出为 `site/assets/d3.min.js`；图谱页面不依赖 CDN 或运行时外网连接。
 - 图谱页面支持：
-  - 文本过滤节点。
-  - 按 tag 过滤节点。
-  - 按 `document` / `tag` / `topic` 类型显示或隐藏节点。
+  - 拖拽节点、画布平移、滚轮或触控缩放，并在窗口尺寸变化时自动适配。
+  - 默认只展示文档节点以及文档之间的引用和共享标签关系。
+  - 通过 `Show tags` 开关按需加入可拖拽的标签节点和 `has_tag` 连线。
+  - 搜索时突出命中的文档或标签，不触发整张图重新布局。
+  - 调整图谱向心力、节点排斥力、相连节点吸引力和连线长度。
+  - 悬停节点时突出直接邻居和连接边，弱化无关内容；放大画布后显示更多标签。
   - 点击 `document` 节点跳转到对应文档页面。
-  - 点击 `tag` 节点自动应用标签过滤。
-  - 点击 `topic` 节点自动填入关键词过滤。
-  - 右侧详情区展示当前节点的 label、type、summary、tags、source 和文档链接。
+  - 点击 `tag` 节点突出与该标签关联的文档，再次点击或点击空白处取消。
+  - 控制面板悬浮在图谱右上角，桌面端默认展开，窄屏默认折叠。
 
 ### 19.5 测试与验收覆盖
 
@@ -1166,8 +1166,8 @@ rustring serve
 主要作用：
 
 - 集成测试新增对 `site/graph.json`、`site/knowledge-graph/index.html` 和 `site/assets/minizensical-graph.js` 的存在性检查。
-- 集成测试验证图谱 JSON 中包含 `document`、`tag`、`topic` 节点。
-- 集成测试验证 `has_tag`、`links_to`、`about_topic`、`shared_tag`、`same_section` 这些边能够生成。
+- 集成测试验证图谱 JSON 只包含 `document`、`tag` 节点。
+- 集成测试验证只生成 `has_tag`、`links_to`、`shared_tag` 三类边，并检查所有边的端点与节点类型匹配。
 - Markdown 单元测试验证普通 Markdown 链接能通过 `pulldown-cmark` 事件流提取，且图片不会被误当成普通链接。
 - 原有最小站点构建测试同步验证新增主题 `Sepia`、`Ocean`、`Forest`、图谱页面入口和图谱脚本资源。
 
@@ -1184,4 +1184,4 @@ rustring build
 - `site/knowledge-graph/index.html` 存在。
 - `site/assets/minizensical-graph.js` 存在。
 - 页面主题能切换到 `Light`、`Dark`、`System`、`Sepia`、`Ocean`、`Forest`。
-- 通过本地 HTTP 预览打开知识图谱页面时，节点能显示，tag / 文本 / 类型过滤能工作，document 节点能跳转到文档页。
+- 通过本地 HTTP 预览打开知识图谱页面时，节点可拖拽，画布可平移缩放，四项力参数和 Tags 开关生效，document 节点能跳转到文档页。

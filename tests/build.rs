@@ -73,6 +73,9 @@ site_name = "Test Docs"
             .join("site/assets/minizensical-graph.js")
             .exists()
     );
+    assert!(temp_dir.path().join("site/assets/d3.min.js").exists());
+    let d3_js = fs::read_to_string(temp_dir.path().join("site/assets/d3.min.js")).unwrap();
+    assert!(d3_js.starts_with("// https://d3js.org v7.9.0"));
     let search_js =
         fs::read_to_string(temp_dir.path().join("site/assets/minizensical-search.js")).unwrap();
     assert!(search_js.contains("mz-search"));
@@ -107,7 +110,13 @@ site_name = "Test Docs"
         fs::read_to_string(temp_dir.path().join("site/assets/minizensical-graph.js")).unwrap();
     assert!(graph_js.contains("graphJson"));
     assert!(graph_js.contains("knowledge-graph"));
-    assert!(graph_js.contains("data-graph-type"));
+    assert!(graph_js.contains("forceSimulation"));
+    assert!(graph_js.contains("forceManyBody"));
+    assert!(graph_js.contains("forceLink"));
+    assert!(graph_js.contains("forceX"));
+    assert!(graph_js.contains("d3.drag"));
+    assert!(graph_js.contains("d3.zoom"));
+    assert!(graph_js.contains("ResizeObserver"));
 }
 
 #[test]
@@ -188,7 +197,7 @@ tags:
     assert!(
         nodes
             .iter()
-            .any(|node| { node["type"] == "topic" && node["label"] == "Overview" })
+            .all(|node| matches!(node["type"].as_str(), Some("document" | "tag")))
     );
 
     assert!(edge_exists(edges, "doc:index.md", "tag:rust", "has_tag"));
@@ -198,32 +207,59 @@ tags:
         "doc:guide/setup.md",
         "links_to"
     ));
-    assert!(edge_exists(
-        edges,
-        "doc:index.md",
-        "topic:overview",
-        "about_topic"
-    ));
     assert!(edge_exists_unordered(
         edges,
         "doc:index.md",
         "doc:guide/setup.md",
         "shared_tag"
     ));
-    assert!(edge_exists_unordered(
-        edges,
-        "doc:guide/setup.md",
-        "doc:guide/extra.md",
-        "same_section"
-    ));
+    assert!(edges.iter().all(|edge| matches!(
+        edge["type"].as_str(),
+        Some("has_tag" | "links_to" | "shared_tag")
+    )));
+    for edge in edges {
+        let source = edge["source"].as_str().unwrap();
+        let target = edge["target"].as_str().unwrap();
+        let edge_type = edge["type"].as_str().unwrap();
+        let source_type = nodes
+            .iter()
+            .find(|node| node["id"] == source)
+            .and_then(|node| node["type"].as_str())
+            .expect("edge source node");
+        let target_type = nodes
+            .iter()
+            .find(|node| node["id"] == target)
+            .and_then(|node| node["type"].as_str())
+            .expect("edge target node");
+        match edge_type {
+            "has_tag" => assert_eq!((source_type, target_type), ("document", "tag")),
+            "links_to" | "shared_tag" => {
+                assert_eq!((source_type, target_type), ("document", "document"));
+            }
+            _ => unreachable!(),
+        }
+    }
 
     let graph_html =
         fs::read_to_string(temp_dir.path().join("site/knowledge-graph/index.html")).unwrap();
     assert!(graph_html.contains("data-graph-json=\"../graph.json\""));
     assert!(graph_html.contains("id=\"knowledge-graph\""));
     assert!(graph_html.contains("id=\"graph-filter\""));
-    assert!(graph_html.contains("data-graph-type=\"document\""));
+    assert!(graph_html.contains("id=\"graph-show-tags\" type=\"checkbox\""));
+    assert!(!graph_html.contains("id=\"graph-show-tags\" type=\"checkbox\" checked"));
+    assert!(graph_html.contains("id=\"graph-center-force\""));
+    assert!(graph_html.contains("id=\"graph-repulsion-force\""));
+    assert!(graph_html.contains("id=\"graph-link-force\""));
+    assert!(graph_html.contains("id=\"graph-link-distance\""));
+    assert!(graph_html.contains("../assets/d3.min.js"));
+    assert!(!graph_html.contains("cdn.jsdelivr.net/npm/d3"));
+    assert!(!graph_html.contains("data-graph-type"));
+    assert!(!graph_html.contains("graph-detail"));
+    assert!(!graph_html.contains("Topics"));
     assert!(graph_html.contains("minizensical-graph.js"));
+    assert!(graph_html.contains("href=\"../index.html\">Home</a>"));
+    assert!(graph_html.contains("href=\"../guide/setup/index.html\">Setup</a>"));
+    assert!(graph_html.contains("href=\"index.html\">Knowledge Graph</a>"));
 
     let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
     assert!(home_html.contains("Knowledge Graph"));
