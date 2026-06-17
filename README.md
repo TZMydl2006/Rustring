@@ -51,6 +51,24 @@ rustring --help
 
 Cargo 默认把可执行文件安装到 `$HOME/.cargo/bin`。使用 `rustup` 安装 Rust 时，该目录通常会自动加入 `PATH`。如果终端提示找不到 `rustring`，请重新打开终端并检查 Cargo 的 `bin` 目录是否在 `PATH` 中。
 
+### 备选安装方式：从 GitHub Releases 下载二进制文件
+
+如果你不想安装 Rust 开发环境，可以直接从仓库的发行区下载预编译的可执行文件。
+
+1. 打开 [GitHub Releases](https://github.com/TZMydl2006/Rustring/releases) 页面。
+2. 下载最新的 `rustring.exe`（Windows）。
+3. 将 `rustring.exe` 放到一个固定目录，例如 `C:\tools`。
+4. 将该目录加入系统 `PATH`：
+   - 按 `Win + R`，输入 `sysdm.cpl`
+   - 依次点击 **高级** → **环境变量** → 双击 `Path` → **新建** → 输入 `C:\tools` → 确定
+5. 重新打开终端，验证：
+
+```bash
+rustring --version
+```
+
+之后可以跳过 Rust 环境安装，直接使用 `rustring init`、`rustring build` 和 `rustring serve`。
+
 ### 更新与卸载
 
 更新到仓库中的最新版本：
