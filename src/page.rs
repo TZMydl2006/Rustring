@@ -55,6 +55,7 @@ impl Page {
             &source.source_path,
             &source.relative_path,
             &output_path,
+            config.project.use_directory_urls,
         )?;
         let title = rendered
             .metadata

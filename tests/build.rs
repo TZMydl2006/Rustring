@@ -263,6 +263,8 @@ tags:
 
     let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
     assert!(home_html.contains("Knowledge Graph"));
+    assert!(home_html.contains(r#"href="guide/setup/index.html" title="setup link""#));
+    assert!(!home_html.contains(r#"href="guide/setup.md""#));
 }
 
 #[test]
@@ -693,10 +695,13 @@ site_name = "Flat Docs"
 use_directory_urls = false
 "#,
     );
-    write_file(temp_dir.path().join("docs/index.md"), "# Home\n");
+    write_file(
+        temp_dir.path().join("docs/index.md"),
+        "# Home\n\nRead [Setup](guide/setup.md).\n",
+    );
     write_file(
         temp_dir.path().join("docs/guide/setup.md"),
-        "# Setup\n\n![diagram](./diagram.png)\n",
+        "# Setup\n\nBack to [Home](../index.md).\n\n![diagram](./diagram.png)\n",
     );
     write_file(temp_dir.path().join("docs/guide/diagram.png"), "diagram");
 
@@ -706,7 +711,12 @@ use_directory_urls = false
     assert!(temp_dir.path().join("site/index.html").exists());
     assert!(temp_dir.path().join("site/guide/setup.html").exists());
     assert!(temp_dir.path().join("site/guide/diagram.png").exists());
+    let home_html = fs::read_to_string(temp_dir.path().join("site/index.html")).unwrap();
+    assert!(home_html.contains(r#"href="guide/setup.html""#));
+    assert!(!home_html.contains(r#"href="guide/setup.md""#));
+
     let setup_html = fs::read_to_string(temp_dir.path().join("site/guide/setup.html")).unwrap();
+    assert!(setup_html.contains(r#"href="../index.html""#));
     assert!(setup_html.contains(r#"src="diagram.png""#));
 }
 

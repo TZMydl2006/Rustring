@@ -342,6 +342,8 @@ docs/assets/logo.png -> site/assets/logo.png
 [下载示例文件](../assets/example.zip)
 ```
 
+站内 Markdown 文档也使用源文件相对路径，例如 `[Setup](guide/setup.md)`；构建时会根据 `use_directory_urls` 自动改写为生成后的 HTML 路径。
+
 ### 自定义字体
 
 将 `.woff2`、`.woff`、`.ttf` 或 `.otf` 文件放入：

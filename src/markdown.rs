@@ -1,5 +1,5 @@
 use crate::error::{MiniZensicalError, Result};
-use crate::page::{PageMetadata, TocItem};
+use crate::page::{PageMetadata, TocItem, output_path_for};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -42,6 +42,7 @@ pub fn render_markdown(
     source_path: &Path,
     relative_source: &Path,
     output_path: &Path,
+    use_directory_urls: bool,
 ) -> Result<RenderedMarkdown> {
     let (metadata, body) = split_front_matter(markdown, source_path)?;
     let normalized_body = normalize_display_math_blocks(body);
@@ -51,8 +52,9 @@ pub fn render_markdown(
     let (body_search_blocks, search_targets) = extract_body_search_blocks(body);
 
     let mut html_output = String::new();
-    let events = Parser::new_ext(body, options())
-        .map(|event| relocate_image_event(event, relative_source, output_path));
+    let events = Parser::new_ext(body, options()).map(|event| {
+        relocate_markdown_event(event, relative_source, output_path, use_directory_urls)
+    });
     let events = normalize_math_events(events.collect());
     html::push_html(&mut html_output, events.into_iter());
     let html = inject_search_target_ids(
@@ -281,12 +283,34 @@ fn is_closing_fence(line: &str, marker: char, opening_length: usize) -> bool {
     length >= opening_length && line[length..].trim().is_empty()
 }
 
-fn relocate_image_event<'a>(
+fn relocate_markdown_event<'a>(
     event: Event<'a>,
     relative_source: &Path,
     output_path: &Path,
+    use_directory_urls: bool,
 ) -> Event<'a> {
     match event {
+        Event::Start(Tag::Link {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => {
+            let dest_url = relocate_markdown_link_url(
+                &dest_url,
+                relative_source,
+                output_path,
+                use_directory_urls,
+            )
+            .map(Into::into)
+            .unwrap_or(dest_url);
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                title,
+                id,
+            })
+        }
         Event::Start(Tag::Image {
             link_type,
             dest_url,
@@ -305,6 +329,35 @@ fn relocate_image_event<'a>(
         }
         _ => event,
     }
+}
+
+fn relocate_markdown_link_url(
+    destination: &str,
+    relative_source: &Path,
+    output_path: &Path,
+    use_directory_urls: bool,
+) -> Option<String> {
+    let (path, suffix) = split_url_suffix(destination);
+    if !is_local_relative_url(path) {
+        return None;
+    }
+
+    let source_dir = relative_source.parent().unwrap_or_else(|| Path::new(""));
+    let target_source = normalize_docs_relative_path(&source_dir.join(path))?;
+    if !target_source
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
+    {
+        return None;
+    }
+
+    let target_output = output_path_for(&target_source, use_directory_urls);
+    Some(format!(
+        "{}{}",
+        relative_url(output_path, &target_output),
+        suffix
+    ))
 }
 
 fn relocate_image_url(
@@ -798,6 +851,7 @@ Body text.
             Path::new("docs/example.md"),
             Path::new("example.md"),
             Path::new("example/index.html"),
+            true,
         )
         .unwrap();
 
@@ -816,6 +870,7 @@ Body text.
             Path::new("docs/index.md"),
             Path::new("index.md"),
             Path::new("index.html"),
+            true,
         )
         .unwrap();
         assert_eq!(rendered.metadata.title, None);
@@ -834,12 +889,13 @@ Body text.
     }
 
     #[test]
-    fn extracts_markdown_links_from_parser_events() {
+    fn extracts_and_relocates_markdown_links() {
         let rendered = render_markdown(
-            "# Links\n\n[Setup](guide/setup.md \"setup\") and [external](https://example.com).\n\n![image](image.png)\n",
-            Path::new("docs/index.md"),
-            Path::new("index.md"),
-            Path::new("index.html"),
+            "# Links\n\n[Hello](helloworld.md), [Setup](guide/setup.md \"setup\"), [Front Matter](guide/front-matter.md#supported-fields), [local section](#links), [asset](assets/example.zip), and [external](https://example.com).\n\n![image](image.png)\n",
+            Path::new("docs/markdown-link-graph-test.md"),
+            Path::new("markdown-link-graph-test.md"),
+            Path::new("markdown-link-graph-test/index.html"),
+            true,
         )
         .unwrap();
 
@@ -851,10 +907,29 @@ Body text.
         assert_eq!(
             destinations,
             vec![
+                ("helloworld.md", None),
                 ("guide/setup.md", Some("setup")),
-                ("https://example.com", None)
+                ("guide/front-matter.md#supported-fields", None),
+                ("#links", None),
+                ("assets/example.zip", None),
+                ("https://example.com", None),
             ]
         );
+        assert!(rendered.html.contains(r#"href="../helloworld/index.html""#));
+        assert!(
+            rendered
+                .html
+                .contains(r#"href="../guide/setup/index.html" title="setup""#)
+        );
+        assert!(
+            rendered
+                .html
+                .contains(r#"href="../guide/front-matter/index.html#supported-fields""#)
+        );
+        assert!(rendered.html.contains(r##"href="#links""##));
+        assert!(rendered.html.contains(r#"href="assets/example.zip""#));
+        assert!(rendered.html.contains(r#"href="https://example.com""#));
+        assert!(rendered.html.contains(r#"src="../image.png""#));
     }
 
     #[test]
@@ -864,6 +939,7 @@ Body text.
             Path::new("docs/broken.md"),
             Path::new("broken.md"),
             Path::new("broken/index.html"),
+            true,
         )
         .unwrap_err();
 
@@ -877,6 +953,7 @@ Body text.
             Path::new("docs/math.md"),
             Path::new("math.md"),
             Path::new("math/index.html"),
+            true,
         )
         .unwrap();
 
